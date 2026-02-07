@@ -30,6 +30,15 @@ const HEADLESS = (getArg("headless", "true") + "").toLowerCase() !== "false";
 const START = new URL(START_URL);
 const START_ORIGIN = START.origin;
 
+const SITE_PREFIX_RAW = getArg("sitePrefix", "");  // e.g. "/DeepWaveArena-site"
+const SITE_PREFIX = (() => {
+  if (!SITE_PREFIX_RAW) return "";
+  let s = SITE_PREFIX_RAW.trim();
+  if (!s.startsWith("/")) s = "/" + s;
+  if (s.endsWith("/")) s = s.slice(0, -1);
+  return s;
+})();
+
 // -------------------- Helpers --------------------
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
@@ -364,7 +373,7 @@ function rewriteHtmlLinks(html, pageUrl, pageLocalRel) {
   
       // Prefer keeping Django-style /static/... absolute
       if (abs.pathname.startsWith("/static/")) {
-        $(el).attr(attr, abs.pathname + abs.search);
+        $(el).attr(attr, SITE_PREFIX + abs.pathname + abs.search);
         return;
       }
   
@@ -616,6 +625,7 @@ function injectFetchShim(html) {
   }
   
   function injectApiShim(html) {
+    const prefix = SITE_PREFIX.replace(/"/g, '\\"');
     const shim = `
   <script id="__api_shim__">
   (() => {
@@ -665,7 +675,7 @@ function injectFetchShim(html) {
         if (!u.pathname.startsWith("/api/")) return null;
   
         const q = u.search ? "__q_" + sha1(u.search) : "";
-        return "/__api__" + u.pathname + "/index" + q + ".json";
+        return "${prefix}" + "/__api__" + u.pathname + "/index" + q + ".json";
       } catch {
         return null;
       }
@@ -718,6 +728,7 @@ function injectFetchShim(html) {
   }
 
   function injectNavShim(html) {
+    const prefix = SITE_PREFIX.replace(/"/g, '\\"');
     const shim = `
   <script id="__nav_shim__">
   (() => {
@@ -735,7 +746,7 @@ function injectFetchShim(html) {
       if (!ext) p = p + ".html";
   
       // We are serving from /pages/...
-      return "/pages" + p;
+      return "${prefix}" + "/pages" + p;
     }
   
     // Intercept link clicks

@@ -15,7 +15,7 @@
       if (!ext) p = p + ".html";
   
       // We are serving from /pages/...
-      return "/pages" + p;
+      return "/DeepWaveArena-site" + "/pages" + p;
     }
   
     // Intercept link clicks
@@ -100,7 +100,7 @@
         if (!u.pathname.startsWith("/api/")) return null;
   
         const q = u.search ? "__q_" + sha1(u.search) : "";
-        return "/__api__" + u.pathname + "/index" + q + ".json";
+        return "/DeepWaveArena-site" + "/__api__" + u.pathname + "/index" + q + ".json";
       } catch {
         return null;
       }

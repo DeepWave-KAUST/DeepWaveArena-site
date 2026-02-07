@@ -15,7 +15,7 @@
       if (!ext) p = p + ".html";
   
       // We are serving from /pages/...
-      return "/pages" + p;
+      return "/DeepWaveArena-site" + "/pages" + p;
     }
   
     // Intercept link clicks
@@ -100,7 +100,7 @@
         if (!u.pathname.startsWith("/api/")) return null;
   
         const q = u.search ? "__q_" + sha1(u.search) : "";
-        return "/__api__" + u.pathname + "/index" + q + ".json";
+        return "/DeepWaveArena-site" + "/__api__" + u.pathname + "/index" + q + ".json";
       } catch {
         return null;
       }
@@ -142,12 +142,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>Codabench</title>
-    <link rel="icon" type="image/ico" href="/static/img/favicon.ico">
+    <link rel="icon" type="image/ico" href="/DeepWaveArena-site/static/img/favicon.ico">
 
     <!-- Vendor -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-    <link rel="stylesheet" href="/static/css/calendar.min.css">
+    <link rel="stylesheet" href="/DeepWaveArena-site/static/css/calendar.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Overpass+Mono&amp;display=swap" rel="stylesheet">
@@ -156,7 +156,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
     <!-- Ours -->
-    <link rel="stylesheet" href="/static/generated/output.css">
+    <link rel="stylesheet" href="/DeepWaveArena-site/static/generated/output.css">
 
     <!-- Latex -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css">
@@ -241,7 +241,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
             <div id="topleft_menu" class="ui secondary inverted menu">
                 <span class="left item">
                     <a href="./index.html" id="home-logo">
-                        <img class="ui mini image" src="/static/img/Cha_Logo.png">
+                        <img class="ui mini image" src="/DeepWaveArena-site/static/img/Cha_Logo.png">
                     </a>
                     <div class="ui search" id="site-wide-competition-search">
                         <div class="ui left icon input search-width">
@@ -272,23 +272,23 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
 
     <div id="logo_div" class="ui text container">
-        <img id="jumbo_logo" src="/static/img/codabench.png">
+        <img id="jumbo_logo" src="/DeepWaveArena-site/static/img/codabench.png">
         <div class="organization-logos">
             <!-- LISN logo -->
             <a href="https://www.lisn.upsaclay.fr/" target="_blank">
-                <img class="organization-logo" src="/static/img/lisn-logo.svg">
+                <img class="organization-logo" src="/DeepWaveArena-site/static/img/lisn-logo.svg">
             </a>
             <!-- Université Paris-Saclay logo -->
             <a href="https://www.universite-paris-saclay.fr/" target="_blank">
-                <img class="organization-logo" src="/static/img/paris-saclay-logo.svg">
+                <img class="organization-logo" src="/DeepWaveArena-site/static/img/paris-saclay-logo.svg">
             </a>
             <!-- CNRS logo -->
             <a href="https://www.cnrs.fr/" target="_blank">
-                <img class="organization-logo" src="/static/img/cnrs-logo.svg">
+                <img class="organization-logo" src="/DeepWaveArena-site/static/img/cnrs-logo.svg">
             </a>
             <!-- Chalearn logo -->
             <a href="http://www.chalearn.org/" target="_blank">
-                <img class="organization-logo" src="/static/img/chalearn-logo.svg">
+                <img class="organization-logo" src="/DeepWaveArena-site/static/img/chalearn-logo.svg">
             </a>
         </div>
     </div>
@@ -307,7 +307,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
 
     <div class="home-wrap">
-        <front-page-competitions><div class="ui two column grid"> <div class="eight wide column"> <div class="ui large header"> Popular Benchmarks </div> <div class="loader-container popular" style="display: none;"> <div class="lds-ring"> <div></div> <div></div> <div></div> <div></div> </div> </div> <competition-tile><div class="tile-wrapper "> <div class="ui square tiny bordered image img-wrapper"> <img src="http://minio:9000/public/logos/2026-02-07-1770432477/bb9fbfdffd79/DeepWave_icon.png"> </div> <a class="link-no-deco" href="./competitions/2.html"> <div class="comp-info"> <h4 class="heading"> DeepWave Arena - Active Seismic Processing (Toy)  </h4> <p class="comp-description"> Test </p> <p class="organizer"> <em>Organized by: <strong>caezario-admin</strong></em> </p> </div> </a> <div class="comp-stats" id="compStats"> February 7, 2026 <div class="ui divider"></div> <div>   </div> <strong>1</strong> Participants </div> </div></competition-tile> <a class="show-more" href="./competitions/public/index__q_e3b38505862e6523b2168dda5f75135d70144e8c.html">Show more</a> </div> <div class="eight wide column"> <div class="ui large header"> Recent Benchmarks </div> <div class="loader-container popular" style="display: none;"> <div class="lds-ring"> <div></div> <div></div> <div></div> <div></div> </div> </div>  <a class="show-more" href="./competitions/public/index__q_0d9ee5b9fa92c1a6aebcae03408b66bbee46dccb.html">Show more</a> </div> </div></front-page-competitions>
+        <front-page-competitions><div class="ui two column grid"> <div class="eight wide column"> <div class="ui large header"> Popular Benchmarks </div> <div class="loader-container popular" style="display: none;"> <div class="lds-ring"> <div></div> <div></div> <div></div> <div></div> </div> </div> <competition-tile><div class="tile-wrapper "> <div class="ui square tiny bordered image img-wrapper"> <img src="http://minio:9000/public/logos/2026-02-07-1770432477/bb9fbfdffd79/DeepWave_icon.png"> </div> <a class="link-no-deco" href="./competitions/2.html"> <div class="comp-info"> <h4 class="heading"> DeepWave Arena - Active Seismic Processing (Toy)  </h4> <p class="comp-description"> Test </p> <p class="organizer"> <em>Organized by: <strong>caezario-admin</strong></em> </p> </div> </a> <div class="comp-stats" id="compStats"> February 7, 2026 <div class="ui divider"></div> <div>   </div> <strong>2</strong> Participants </div> </div></competition-tile> <a class="show-more" href="./competitions/public/index__q_e3b38505862e6523b2168dda5f75135d70144e8c.html">Show more</a> </div> <div class="eight wide column"> <div class="ui large header"> Recent Benchmarks </div> <div class="loader-container popular" style="display: none;"> <div class="lds-ring"> <div></div> <div></div> <div></div> <div></div> </div> </div>  <a class="show-more" href="./competitions/public/index__q_0d9ee5b9fa92c1a6aebcae03408b66bbee46dccb.html">Show more</a> </div> </div></front-page-competitions>
 
         <!-- Action Section -->
         <div id="action-container" class="segment-container ui segment full-width">
@@ -486,48 +486,48 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
             <div class="ui header">Partners</div>
             <div class="container-content" id="partners-row1">
                 <a href="https://www.universite-paris-saclay.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/paris-saclay.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/paris-saclay.png">
                 </a>
                 <a href="https://www.microsoft.com/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/microsoft.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/microsoft.png">
                 </a>
                 <a href="http://www.chalearn.org/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/chalearn.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/chalearn.png">
                 </a>
                 <a href="http://www.ub.edu/web/ub/en/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/barcelona.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/barcelona.png">
                 </a>
                 <a href="https://www.stanford.edu/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/stanford.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/stanford.png">
                 </a>
                 <a href="https://www.iledefrance.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/idf.jpg">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/idf.jpg">
                 </a>
                 <a href="https://www.inria.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/inria.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/inria.png">
                 </a>
             </div>
             <div class="container-content">
                 <a href="https://www.lisn.upsaclay.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/lisn.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/lisn.png">
                 </a>
                 <a href="https://www.google.com/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/google.jpg">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/google.jpg">
                 </a>
                 <a href="https://en.4paradigm.com/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/4paradigm.jpg">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/4paradigm.jpg">
                 </a>
                 <a href="https://www.cnrs.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/cnrs.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/cnrs.png">
                 </a>
                 <a href="https://anr.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/anr.png">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/anr.png">
                 </a>
                 <a href="https://anr.fr/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/anr2.jpg">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/anr2.jpg">
                 </a>
                 <a href="https://www.eithealth.eu/" target="_blank">
-                    <img class="partner-img" src="/static/img/partners/eit_health.jpg">
+                    <img class="partner-img" src="/DeepWaveArena-site/static/img/partners/eit_health.jpg">
                 </a>
             </div>
         </div>
@@ -582,7 +582,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
     <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="/static/js/calendar.min.js"></script>
+    <script src="/DeepWaveArena-site/static/js/calendar.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/1.0.10/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@1.13.1/build/global/luxon.min.js"></script>
@@ -602,7 +602,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
         STORAGE_TYPE = "s3"
         MAX_EXECUTION_TIME_LIMIT = "600"
-        CURRENT_DATE_TIME = "2026-02-07T16:40:25.780517+00:00"
+        CURRENT_DATE_TIME = "2026-02-07T19:30:40.200408+00:00"
         CODALAB = {
             state: {
                 user: JSON.parse("{\u0022logged_in\u0022: false}"),
@@ -694,7 +694,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
         }
         // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
-        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="IkQJgTOY5yFa5vHPazYxM1zmvfzpxI33bFaSfRpvuj69a1cKtfiY39s69lwdyXDW">').attr('value')
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="a1I9homu6bBDIqIgTMBIgqsxHdm2JdBw2pskqfveBFgQeoINstXlobVBayPJREzl">').attr('value')
 
         $(document).ready( function () {
             $('#site-wide-competition-search').search({
@@ -713,15 +713,15 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         })
     </script>
 
-    <script src="/static/js/ours/client.js"></script>
-    <script src="/static/js/ours/init.js"></script>
-    <script src="/static/js/ours/riotjs_mixins.js"></script>
-    <script src="/static/js/ours/utils.js"></script>
-    <script src="/static/js/jquery.form.serializer.js"></script>
-    <script src="/static/js/Chart.bundle.js"></script>
-    <script src="/static/js/reconnecting-websocket.min.js"></script>
-    <script src="/static/generated/riot.js"></script>
-    <script src="/static/js/ours/latex_markdown_html.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/client.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/init.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/riotjs_mixins.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/utils.js"></script>
+    <script src="/DeepWaveArena-site/static/js/jquery.form.serializer.js"></script>
+    <script src="/DeepWaveArena-site/static/js/Chart.bundle.js"></script>
+    <script src="/DeepWaveArena-site/static/js/reconnecting-websocket.min.js"></script>
+    <script src="/DeepWaveArena-site/static/generated/riot.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/latex_markdown_html.js"></script>
 
     
     
@@ -742,4 +742,4 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
 
 
-<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="IkQJgTOY5yFa5vHPazYxM1zmvfzpxI33bFaSfRpvuj69a1cKtfiY39s69lwdyXDW"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="a1I9homu6bBDIqIgTMBIgqsxHdm2JdBw2pskqfveBFgQeoINstXlobVBayPJREzl"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>

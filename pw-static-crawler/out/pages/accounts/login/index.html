@@ -15,7 +15,7 @@
       if (!ext) p = p + ".html";
   
       // We are serving from /pages/...
-      return "/pages" + p;
+      return "/DeepWaveArena-site" + "/pages" + p;
     }
   
     // Intercept link clicks
@@ -100,7 +100,7 @@
         if (!u.pathname.startsWith("/api/")) return null;
   
         const q = u.search ? "__q_" + sha1(u.search) : "";
-        return "/__api__" + u.pathname + "/index" + q + ".json";
+        return "/DeepWaveArena-site" + "/__api__" + u.pathname + "/index" + q + ".json";
       } catch {
         return null;
       }
@@ -142,12 +142,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>Codabench</title>
-    <link rel="icon" type="image/ico" href="/static/img/favicon.ico">
+    <link rel="icon" type="image/ico" href="/DeepWaveArena-site/static/img/favicon.ico">
 
     <!-- Vendor -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-    <link rel="stylesheet" href="/static/css/calendar.min.css">
+    <link rel="stylesheet" href="/DeepWaveArena-site/static/css/calendar.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Overpass+Mono&amp;display=swap" rel="stylesheet">
@@ -156,7 +156,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
     <!-- Ours -->
-    <link rel="stylesheet" href="/static/generated/output.css">
+    <link rel="stylesheet" href="/DeepWaveArena-site/static/generated/output.css">
 
     <!-- Latex -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css">
@@ -241,7 +241,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
             <div id="topleft_menu" class="ui secondary inverted menu">
                 <span class="left item">
                     <a href="../../index.html" id="home-logo">
-                        <img class="ui mini image" src="/static/img/Cha_Logo.png">
+                        <img class="ui mini image" src="/DeepWaveArena-site/static/img/Cha_Logo.png">
                     </a>
                     <div class="ui search" id="site-wide-competition-search">
                         <div class="ui left icon input search-width">
@@ -286,7 +286,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
     <div class="ui stacked segment">
         <form class="ui form" method="POST">
-            <input type="hidden" name="csrfmiddlewaretoken" value="mApvJN0qqpGkrAdqLrW02jKIbSrWSfjwPVJEILBXPa7jw6Il47grjrDsPYoKTuTp">
+            <input type="hidden" name="csrfmiddlewaretoken" value="33IuxPrvc3fuSh4Wx0ijiEM8m3zJLJODVrsFGGAfHxUHof4t6HEWqpfcPo2qTaMs">
             
             
             <div class="field">
@@ -367,7 +367,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
     <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="/static/js/calendar.min.js"></script>
+    <script src="/DeepWaveArena-site/static/js/calendar.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/1.0.10/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@1.13.1/build/global/luxon.min.js"></script>
@@ -387,7 +387,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
         STORAGE_TYPE = "s3"
         MAX_EXECUTION_TIME_LIMIT = "600"
-        CURRENT_DATE_TIME = "2026-02-07T16:45:53.165042+00:00"
+        CURRENT_DATE_TIME = "2026-02-07T19:32:41.800783+00:00"
         CODALAB = {
             state: {
                 user: JSON.parse("{\u0022logged_in\u0022: false}"),
@@ -479,7 +479,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
         }
         // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
-        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="mApvJN0qqpGkrAdqLrW02jKIbSrWSfjwPVJEILBXPa7jw6Il47grjrDsPYoKTuTp">').attr('value')
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="33IuxPrvc3fuSh4Wx0ijiEM8m3zJLJODVrsFGGAfHxUHof4t6HEWqpfcPo2qTaMs">').attr('value')
 
         $(document).ready( function () {
             $('#site-wide-competition-search').search({
@@ -498,15 +498,15 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         })
     </script>
 
-    <script src="/static/js/ours/client.js"></script>
-    <script src="/static/js/ours/init.js"></script>
-    <script src="/static/js/ours/riotjs_mixins.js"></script>
-    <script src="/static/js/ours/utils.js"></script>
-    <script src="/static/js/jquery.form.serializer.js"></script>
-    <script src="/static/js/Chart.bundle.js"></script>
-    <script src="/static/js/reconnecting-websocket.min.js"></script>
-    <script src="/static/generated/riot.js"></script>
-    <script src="/static/js/ours/latex_markdown_html.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/client.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/init.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/riotjs_mixins.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/utils.js"></script>
+    <script src="/DeepWaveArena-site/static/js/jquery.form.serializer.js"></script>
+    <script src="/DeepWaveArena-site/static/js/Chart.bundle.js"></script>
+    <script src="/DeepWaveArena-site/static/js/reconnecting-websocket.min.js"></script>
+    <script src="/DeepWaveArena-site/static/generated/riot.js"></script>
+    <script src="/DeepWaveArena-site/static/js/ours/latex_markdown_html.js"></script>
 
     
     
@@ -514,4 +514,4 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
 
 
-<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="mApvJN0qqpGkrAdqLrW02jKIbSrWSfjwPVJEILBXPa7jw6Il47grjrDsPYoKTuTp"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="33IuxPrvc3fuSh4Wx0ijiEM8m3zJLJODVrsFGGAfHxUHof4t6HEWqpfcPo2qTaMs"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
