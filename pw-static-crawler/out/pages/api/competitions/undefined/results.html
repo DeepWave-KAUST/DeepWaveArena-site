@@ -1,0 +1,140 @@
+<html><head>
+  <script id="__nav_shim__">
+  (() => {
+    // Maps an internal app route like /competitions/2 -> /pages/competitions/2.html
+    function mapToLocalPagePath(pathname, search) {
+      // Skip things that should remain as-is
+      if (pathname.startsWith("/static/") || pathname.startsWith("/__api__/") || pathname.startsWith("/api/")) return null;
+  
+      // Mirror the crawler's pageUrlToLocalHtml convention (simplified):
+      // - trailing slash => index.html
+      // - otherwise => .html
+      let p = pathname;
+      if (p.endsWith("/")) p = p + "index";
+      const ext = (p.match(/\.[a-zA-Z0-9]+$/) || [null])[0];
+      if (!ext) p = p + ".html";
+  
+      // We are serving from /pages/...
+      return "/pages" + p;
+    }
+  
+    // Intercept link clicks
+    document.addEventListener("click", (e) => {
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a) return;
+  
+      const href = a.getAttribute("href");
+      if (!href) return;
+  
+      // only same-origin-ish navigations
+      if (href.startsWith("http://") || href.startsWith("https://")) {
+        try {
+          const u = new URL(href);
+          if (u.origin !== window.location.origin) return;
+          const mapped = mapToLocalPagePath(u.pathname, u.search);
+          if (!mapped) return;
+          e.preventDefault();
+          window.location.href = mapped + (u.search || "") + (u.hash || "");
+        } catch { return; }
+        return;
+      }
+  
+      // relative/absolute-path navigations
+      if (href.startsWith("/")) {
+        const mapped = mapToLocalPagePath(href.split("#")[0], "");
+        if (!mapped) return;
+        e.preventDefault();
+        const hash = href.includes("#") ? href.slice(href.indexOf("#")) : "";
+        window.location.href = mapped + hash;
+      }
+    }, true);
+  
+  })();
+  </script>
+  
+  <script id="__api_shim__">
+  (() => {
+    // Map /api/... -> /__api__/api/.../index__q_<sha1(search)>.json
+    // Also supports XHR (axios) and fetch.
+  
+    function rotl(n,s){return (n<<s)|(n>>> (32-s));}
+    function tohex(i){for(var h="", s=28; s>=0; s-=4) h += ((i>>>s)&0xF).toString(16); return h;}
+    function sha1(msg) {
+      msg = unescape(encodeURIComponent(msg));
+      var ml = msg.length, wa = [];
+      for (var i=0; i<ml-3; i+=4) wa.push((msg.charCodeAt(i)<<24)|(msg.charCodeAt(i+1)<<16)|(msg.charCodeAt(i+2)<<8)|(msg.charCodeAt(i+3)));
+      var rem = ml % 4, last = 0;
+      if (rem===0) last = 0x080000000;
+      else if (rem===1) last = (msg.charCodeAt(ml-1)<<24) | 0x0800000;
+      else if (rem===2) last = (msg.charCodeAt(ml-2)<<24) | (msg.charCodeAt(ml-1)<<16) | 0x08000;
+      else last = (msg.charCodeAt(ml-3)<<24) | (msg.charCodeAt(ml-2)<<16) | (msg.charCodeAt(ml-1)<<8) | 0x80;
+      wa.push(last);
+      while ((wa.length % 16) !== 14) wa.push(0);
+      wa.push(ml >>> 29);
+      wa.push((ml << 3) & 0x0ffffffff);
+  
+      var H0=0x67452301,H1=0xEFCDAB89,H2=0x98BADCFE,H3=0x10325476,H4=0xC3D2E1F0;
+      for (var bo=0; bo<wa.length; bo+=16) {
+        var W = wa.slice(bo, bo+16);
+        for (var t=16; t<80; t++) W[t] = rotl(W[t-3]^W[t-8]^W[t-14]^W[t-16], 1)>>>0;
+        var a=H0,b=H1,c=H2,d=H3,e=H4;
+        for (var t=0; t<80; t++) {
+          var f,k;
+          if (t<20) {f=(b&c)|((~b)&d); k=0x5A827999;}
+          else if (t<40) {f=b^c^d; k=0x6ED9EBA1;}
+          else if (t<60) {f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC;}
+          else {f=b^c^d; k=0xCA62C1D6;}
+          var temp = (rotl(a,5) + f + e + k + (W[t]>>>0))>>>0;
+          e=d; d=c; c=rotl(b,30)>>>0; b=a; a=temp;
+        }
+        H0=(H0+a)>>>0; H1=(H1+b)>>>0; H2=(H2+c)>>>0; H3=(H3+d)>>>0; H4=(H4+e)>>>0;
+      }
+      return tohex(H0)+tohex(H1)+tohex(H2)+tohex(H3)+tohex(H4);
+    }
+  
+    function mapApi(urlStr) {
+      try {
+        const u = new URL(urlStr, window.location.origin);
+        // Only same-origin, path starting with /api/
+        if (u.origin !== window.location.origin) return null;
+        if (!u.pathname.startsWith("/api/")) return null;
+  
+        const q = u.search ? "__q_" + sha1(u.search) : "";
+        return "/__api__" + u.pathname + "/index" + q + ".json";
+      } catch {
+        return null;
+      }
+    }
+  
+    // ---- fetch() shim ----
+    if (window.fetch) {
+      const origFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const urlStr = (typeof input === "string") ? input : (input && input.url);
+        const mapped = urlStr ? mapApi(urlStr) : null;
+        if (mapped) return origFetch(mapped, { method: "GET" });
+        return origFetch(input, init);
+      };
+    }
+  
+    // ---- XMLHttpRequest shim (axios uses this) ----
+    const OrigXHR = window.XMLHttpRequest;
+    if (OrigXHR) {
+      function XHRProxy() {
+        const xhr = new OrigXHR();
+        const origOpen = xhr.open;
+        xhr.open = function(method, url, ...rest) {
+          const mapped = url ? mapApi(url) : null;
+          if (mapped) {
+            // Always GET mirrored JSON
+            return origOpen.call(this, "GET", mapped, ...rest);
+          }
+          return origOpen.call(this, method, url, ...rest);
+        };
+        return xhr;
+      }
+      window.XMLHttpRequest = XHRProxy;
+    }
+  })();
+  </script>
+  <meta name="color-scheme" content="light dark"><meta charset="utf-8"></head><body><pre>{"detail":"Not found."}</pre><div class="json-formatter-container"></div></body></html>

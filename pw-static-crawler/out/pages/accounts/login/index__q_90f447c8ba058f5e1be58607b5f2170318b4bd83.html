@@ -1,0 +1,517 @@
+<html lang="en"><head>
+  <script id="__nav_shim__">
+  (() => {
+    // Maps an internal app route like /competitions/2 -> /pages/competitions/2.html
+    function mapToLocalPagePath(pathname, search) {
+      // Skip things that should remain as-is
+      if (pathname.startsWith("/static/") || pathname.startsWith("/__api__/") || pathname.startsWith("/api/")) return null;
+  
+      // Mirror the crawler's pageUrlToLocalHtml convention (simplified):
+      // - trailing slash => index.html
+      // - otherwise => .html
+      let p = pathname;
+      if (p.endsWith("/")) p = p + "index";
+      const ext = (p.match(/\.[a-zA-Z0-9]+$/) || [null])[0];
+      if (!ext) p = p + ".html";
+  
+      // We are serving from /pages/...
+      return "/pages" + p;
+    }
+  
+    // Intercept link clicks
+    document.addEventListener("click", (e) => {
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a) return;
+  
+      const href = a.getAttribute("href");
+      if (!href) return;
+  
+      // only same-origin-ish navigations
+      if (href.startsWith("http://") || href.startsWith("https://")) {
+        try {
+          const u = new URL(href);
+          if (u.origin !== window.location.origin) return;
+          const mapped = mapToLocalPagePath(u.pathname, u.search);
+          if (!mapped) return;
+          e.preventDefault();
+          window.location.href = mapped + (u.search || "") + (u.hash || "");
+        } catch { return; }
+        return;
+      }
+  
+      // relative/absolute-path navigations
+      if (href.startsWith("/")) {
+        const mapped = mapToLocalPagePath(href.split("#")[0], "");
+        if (!mapped) return;
+        e.preventDefault();
+        const hash = href.includes("#") ? href.slice(href.indexOf("#")) : "";
+        window.location.href = mapped + hash;
+      }
+    }, true);
+  
+  })();
+  </script>
+  
+  <script id="__api_shim__">
+  (() => {
+    // Map /api/... -> /__api__/api/.../index__q_<sha1(search)>.json
+    // Also supports XHR (axios) and fetch.
+  
+    function rotl(n,s){return (n<<s)|(n>>> (32-s));}
+    function tohex(i){for(var h="", s=28; s>=0; s-=4) h += ((i>>>s)&0xF).toString(16); return h;}
+    function sha1(msg) {
+      msg = unescape(encodeURIComponent(msg));
+      var ml = msg.length, wa = [];
+      for (var i=0; i<ml-3; i+=4) wa.push((msg.charCodeAt(i)<<24)|(msg.charCodeAt(i+1)<<16)|(msg.charCodeAt(i+2)<<8)|(msg.charCodeAt(i+3)));
+      var rem = ml % 4, last = 0;
+      if (rem===0) last = 0x080000000;
+      else if (rem===1) last = (msg.charCodeAt(ml-1)<<24) | 0x0800000;
+      else if (rem===2) last = (msg.charCodeAt(ml-2)<<24) | (msg.charCodeAt(ml-1)<<16) | 0x08000;
+      else last = (msg.charCodeAt(ml-3)<<24) | (msg.charCodeAt(ml-2)<<16) | (msg.charCodeAt(ml-1)<<8) | 0x80;
+      wa.push(last);
+      while ((wa.length % 16) !== 14) wa.push(0);
+      wa.push(ml >>> 29);
+      wa.push((ml << 3) & 0x0ffffffff);
+  
+      var H0=0x67452301,H1=0xEFCDAB89,H2=0x98BADCFE,H3=0x10325476,H4=0xC3D2E1F0;
+      for (var bo=0; bo<wa.length; bo+=16) {
+        var W = wa.slice(bo, bo+16);
+        for (var t=16; t<80; t++) W[t] = rotl(W[t-3]^W[t-8]^W[t-14]^W[t-16], 1)>>>0;
+        var a=H0,b=H1,c=H2,d=H3,e=H4;
+        for (var t=0; t<80; t++) {
+          var f,k;
+          if (t<20) {f=(b&c)|((~b)&d); k=0x5A827999;}
+          else if (t<40) {f=b^c^d; k=0x6ED9EBA1;}
+          else if (t<60) {f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC;}
+          else {f=b^c^d; k=0xCA62C1D6;}
+          var temp = (rotl(a,5) + f + e + k + (W[t]>>>0))>>>0;
+          e=d; d=c; c=rotl(b,30)>>>0; b=a; a=temp;
+        }
+        H0=(H0+a)>>>0; H1=(H1+b)>>>0; H2=(H2+c)>>>0; H3=(H3+d)>>>0; H4=(H4+e)>>>0;
+      }
+      return tohex(H0)+tohex(H1)+tohex(H2)+tohex(H3)+tohex(H4);
+    }
+  
+    function mapApi(urlStr) {
+      try {
+        const u = new URL(urlStr, window.location.origin);
+        // Only same-origin, path starting with /api/
+        if (u.origin !== window.location.origin) return null;
+        if (!u.pathname.startsWith("/api/")) return null;
+  
+        const q = u.search ? "__q_" + sha1(u.search) : "";
+        return "/__api__" + u.pathname + "/index" + q + ".json";
+      } catch {
+        return null;
+      }
+    }
+  
+    // ---- fetch() shim ----
+    if (window.fetch) {
+      const origFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const urlStr = (typeof input === "string") ? input : (input && input.url);
+        const mapped = urlStr ? mapApi(urlStr) : null;
+        if (mapped) return origFetch(mapped, { method: "GET" });
+        return origFetch(input, init);
+      };
+    }
+  
+    // ---- XMLHttpRequest shim (axios uses this) ----
+    const OrigXHR = window.XMLHttpRequest;
+    if (OrigXHR) {
+      function XHRProxy() {
+        const xhr = new OrigXHR();
+        const origOpen = xhr.open;
+        xhr.open = function(method, url, ...rest) {
+          const mapped = url ? mapApi(url) : null;
+          if (mapped) {
+            // Always GET mirrored JSON
+            return origOpen.call(this, "GET", mapped, ...rest);
+          }
+          return origOpen.call(this, method, url, ...rest);
+        };
+        return xhr;
+      }
+      window.XMLHttpRequest = XHRProxy;
+    }
+  })();
+  </script>
+  
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Codabench</title>
+    <link rel="icon" type="image/ico" href="/static/img/favicon.ico">
+
+    <!-- Vendor -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <link rel="stylesheet" href="/static/css/calendar.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Overpass+Mono&amp;display=swap" rel="stylesheet">
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <!-- Ours -->
+    <link rel="stylesheet" href="/static/generated/output.css">
+
+    <!-- Latex -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.css">
+
+    
+    
+<style type="text/css">user_management { width: 100%; } user_management h1.ui.center.aligned.header,[data-is="user_management"] h1.ui.center.aligned.header{ margin-top: 0.5em; } user_management .ui.search,[data-is="user_management"] .ui.search{ align-content: right !important; } user_management .first_row,[data-is="user_management"] .first_row{ width: 35px; } user_management .edit.icon,[data-is="user_management"] .edit.icon{ color: #808080; padding-top: 2px; } user_management .trash.icon,[data-is="user_management"] .trash.icon{ color: #808080; } user_management #search_bar,[data-is="user_management"] #search_bar{ text-align: right; } user_management table.ui.striped.table,[data-is="user_management"] table.ui.striped.table{ margin-bottom: 1em; } user_management .ui.right.aligned.container,[data-is="user_management"] .ui.right.aligned.container{ margin-top: 1em; }
+analytics-storage-competitions-usage th,[data-is="analytics-storage-competitions-usage"] th{ border-bottom: 2px solid #808080; } analytics-storage-competitions-usage table,[data-is="analytics-storage-competitions-usage"] table{ margin-bottom: 50px; width: 1000px; } analytics-storage-competitions-usage canvas.big,[data-is="analytics-storage-competitions-usage"] canvas.big{ height: 500px !important; width: 1000px !important; } analytics-storage-competitions-usage .date-input,[data-is="analytics-storage-competitions-usage"] .date-input{ display: flex; flex-direction: column; } analytics-storage-competitions-usage .start-date-input,[data-is="analytics-storage-competitions-usage"] .start-date-input{ margin-right: 40px; } analytics-storage-competitions-usage .date-selection,[data-is="analytics-storage-competitions-usage"] .date-selection{ display: flex; justify-content: space-between; flex-direction: row; background: #eee; margin-top: 30px; border-radius: 4px; padding: 10px; width: fit-content; } analytics-storage-competitions-usage .chart-container,[data-is="analytics-storage-competitions-usage"] .chart-container{ min-height: 450px; } analytics-storage-competitions-usage .flex-row,[data-is="analytics-storage-competitions-usage"] .flex-row{ display: flex; flex-direction: row; }
+analytics-storage-usage-history .chart-container,[data-is="analytics-storage-usage-history"] .chart-container{ min-height: 450px; } analytics-storage-usage-history .flex-row,[data-is="analytics-storage-usage-history"] .flex-row{ display: flex; flex-direction: row; }
+analytics-storage-users-usage th,[data-is="analytics-storage-users-usage"] th{ border-bottom: 2px solid #808080; } analytics-storage-users-usage table,[data-is="analytics-storage-users-usage"] table{ margin-bottom: 50px; width: 1000px; } analytics-storage-users-usage canvas.big,[data-is="analytics-storage-users-usage"] canvas.big{ height: 500px !important; width: 1000px !important; } analytics-storage-users-usage .date-input,[data-is="analytics-storage-users-usage"] .date-input{ display: flex; flex-direction: column; } analytics-storage-users-usage .start-date-input,[data-is="analytics-storage-users-usage"] .start-date-input{ margin-right: 40px; } analytics-storage-users-usage .date-selection,[data-is="analytics-storage-users-usage"] .date-selection{ display: flex; justify-content: space-between; flex-direction: row; background: #eee; margin-top: 30px; border-radius: 4px; padding: 10px; width: fit-content; } analytics-storage-users-usage .chart-container,[data-is="analytics-storage-users-usage"] .chart-container{ min-height: 450px; } analytics-storage-users-usage .flex-row,[data-is="analytics-storage-users-usage"] .flex-row{ display: flex; flex-direction: row; }
+analytics { width: 100%; } analytics .ui.inverted.bluewood.menu,[data-is="analytics"] .ui.inverted.bluewood.menu{ background-color: #2c3f4c; } analytics h1,[data-is="analytics"] h1{ margin-bottom: 20px; margin-top: 30px; } analytics h3,[data-is="analytics"] h3{ margin-bottom: 8px; } analytics canvas.big,[data-is="analytics"] canvas.big{ height: 500px !important; width: 1000px !important; } analytics .hidden,[data-is="analytics"] .hidden{ display: none !important; } analytics .date-input,[data-is="analytics"] .date-input{ display: flex; flex-direction: column; } analytics .start-date-input,[data-is="analytics"] .start-date-input{ margin-right: 40px; } analytics .date-selection,[data-is="analytics"] .date-selection{ display: flex; justify-content: space-between; flex-direction: row; background: #eee; margin-top: 30px; border-radius: 4px; padding: 10px; width: fit-content; } analytics .chart-container,[data-is="analytics"] .chart-container{ min-height: 450px; } analytics .delete-oprhans-container,[data-is="analytics"] .delete-oprhans-container{ margin-bottom: 5px; margin-left: auto; }
+competition-list .table.participation .published.icon.grey,[data-is="competition-list"] .table.participation .published.icon.grey{ opacity: 0.65; transition: 0.25s all ease-in-out; } competition-list .table.participation .published.icon.grey:hover,[data-is="competition-list"] .table.participation .published.icon.grey:hover{ background-color: #21ba45; }
+competition-detailed-results { width: 100%; }
+comp-detail-header .detail-label,[data-is="comp-detail-header"] .detail-label{ font-size: 1.25em; text-transform: uppercase; color: #0bb; font-family: 'Overpass Mono', monospace; } comp-detail-header .detail-item,[data-is="comp-detail-header"] .detail-item{ font-size: 1.25em; color: #2c3f4c; text-transform: capitalize; font-family: 'Overpass Mono', monospace; } comp-detail-header .competition-secret-key,[data-is="comp-detail-header"] .competition-secret-key{ font-size: 13px; } comp-detail-header .contact-email,[data-is="comp-detail-header"] .contact-email{ font-size: 1em; color: #0bb; font-family: 'Overpass Mono', monospace; } comp-detail-header .secret-label,[data-is="comp-detail-header"] .secret-label{ color: #db2828; } comp-detail-header .docker-label,[data-is="comp-detail-header"] .docker-label{ color: #0bb; } comp-detail-header .report-label,[data-is="comp-detail-header"] .report-label{ color: #0bb; } comp-detail-header .secret-url,[data-is="comp-detail-header"] .secret-url{ color: #2c3f4c; } comp-detail-header .competition-name,[data-is="comp-detail-header"] .competition-name{ color: #2c3f4c; font-size: 3em; height: auto; line-height: 1.1em; text-transform: uppercase; font-weight: 800; } comp-detail-header .copy.icon,[data-is="comp-detail-header"] .copy.icon{ cursor: pointer; } comp-detail-header .competition-image,[data-is="comp-detail-header"] .competition-image{ box-shadow: 3px 3px 5px #a9a9a9; } comp-detail-header .underline,[data-is="comp-detail-header"] .underline{ border-bottom: 1px solid #0bb; display: inline-block; line-height: 0.9em; } comp-detail-header .tiny.left.labeled.button,[data-is="comp-detail-header"] .tiny.left.labeled.button{ display: flex; margin-top: 15px; justify-content: flex-end; } comp-detail-header .tiny.left.labeled.button .ui.tiny.button,[data-is="comp-detail-header"] .tiny.left.labeled.button .ui.tiny.button{ width: 120px; text-transform: uppercase; font-weight: 100; } comp-detail-header .ui.table,[data-is="comp-detail-header"] .ui.table{ color: #2c3f4c !important; } comp-detail-header .ui.table thead > tr > th,[data-is="comp-detail-header"] .ui.table thead > tr > th{ color: #2c3f4c !important; background-color: #f2faff !important; } comp-detail-header .reward-container,[data-is="comp-detail-header"] .reward-container{ background: linear-gradient(to right, #f96, #ff5e62); color: #fff; border: 1px solid #e6e9eb; border-radius: 5px; padding: 10px; display: flex; align-items: center; margin-left: 1rem; } comp-detail-header .reward-icon,[data-is="comp-detail-header"] .reward-icon{ width: 40px; height: 40px; margin-right: 10px; } comp-detail-header .reward-text,[data-is="comp-detail-header"] .reward-text{ font-size: 24px; font-weight: 900; display: inline-block; }
+comp-run-info .comp-run-info,[data-is="comp-run-info"] .comp-run-info{ width: inherit; display: grid; grid-template: "comp-leaderboard" "comp-submissions" "comp-comments"; grid-gap: 10px; } comp-run-info .comp-leaderboard,[data-is="comp-run-info"] .comp-leaderboard{ grid-template-areas: comp-leaderboard; height: 100%; } comp-run-info .comp-leaderboard table,[data-is="comp-run-info"] .comp-leaderboard table{ height: 100%; } comp-run-info .comp-leaderboard table td,[data-is="comp-run-info"] .comp-leaderboard table td{ font-size: 13px; } comp-run-info .comp-leaderboard table td img,[data-is="comp-run-info"] .comp-leaderboard table td img{ height: 24px; } comp-run-info .comp-leaderboard th.score,[data-is="comp-run-info"] .comp-leaderboard th.score,comp-run-info .comp-leaderboard td.score,[data-is="comp-run-info"] .comp-leaderboard td.score{ text-align: center; } comp-run-info .comp-submissions,[data-is="comp-run-info"] .comp-submissions{ grid-template-areas: comp-submissions; height: 100%; } comp-run-info .comp-submissions table,[data-is="comp-run-info"] .comp-submissions table{ height: 100%; } comp-run-info .comp-comments,[data-is="comp-run-info"] .comp-comments{ grid-template-areas: comp-comments; height: 100%; } comp-run-info .comp-comments table,[data-is="comp-run-info"] .comp-comments table{ height: 100%; } @media screen and (min-width: 700px) { comp-run-info .comp-run-info,[data-is="comp-run-info"] .comp-run-info{ grid-template-columns: 1fr 1fr 1fr; grid-template: "comp-leaderboard comp-submissions comp-comments"; } }
+comp-stats .comp-stats,[data-is="comp-stats"] .comp-stats{ margin: 2vh !important; }
+comp-tabs .leaderboard-table,[data-is="comp-tabs"] .leaderboard-table{ overflow: auto; } comp-tabs .comp-tabs,[data-is="comp-tabs"] .comp-tabs{ margin-top: 1em !important; } comp-tabs .ui.secondary.pointing.menu .active.item,[data-is="comp-tabs"] .ui.secondary.pointing.menu .active.item{ border-color: rgba(42,68,88,0.5); color: #2a4458; } comp-tabs .ui.secondary.pointing.menu .active.item:hover,[data-is="comp-tabs"] .ui.secondary.pointing.menu .active.item:hover{ border-color: rgba(42,68,88,0.5); color: #2a4458; } comp-tabs .inline,[data-is="comp-tabs"] .inline{ display: inline-block; } comp-tabs .float-right,[data-is="comp-tabs"] .float-right{ float: right; } comp-tabs .details-menu,[data-is="comp-tabs"] .details-menu{ width: 100%; } comp-tabs .details-menu .item,[data-is="comp-tabs"] .details-menu .item{ font-size: 1.3em; } comp-tabs .details-menu .active.item,[data-is="comp-tabs"] .details-menu .active.item,comp-tabs .details-menu .item,[data-is="comp-tabs"] .details-menu .item{ margin: -2px auto !important; cursor: pointer; } comp-tabs .home-tab,[data-is="comp-tabs"] .home-tab{ padding: 2em 0.5em; } comp-tabs .home-tab .short-description,[data-is="comp-tabs"] .home-tab .short-description{ font-size: 44px; font-weight: 600; color: #2c3f4c; line-height: 1em; } comp-tabs .home-tab .seven.column,[data-is="comp-tabs"] .home-tab .seven.column{ align-self: center; } comp-tabs .home-tab .long-description,[data-is="comp-tabs"] .home-tab .long-description{ border-left: solid 2px #0bb; color: #2c3f4c; font-size: 14px; padding: 10px; font-family: 'Overpass Mono', monospace; } comp-tabs .home-tab .leaderboard,[data-is="comp-tabs"] .home-tab .leaderboard{ width: 100%; text-align: center; color: #2c3f4c; font-family: 'Overpass Mono', monospace; } comp-tabs .home-tab .leaderboard table,[data-is="comp-tabs"] .home-tab .leaderboard table{ color: #2c3f4c !important; } comp-tabs .home-tab .leaderboard table thead > tr > th,[data-is="comp-tabs"] .home-tab .leaderboard table thead > tr > th{ color: #2c3f4c !important; background-color: #f2faff !important; } comp-tabs .home-tab .leaderboard table .medal,[data-is="comp-tabs"] .home-tab .leaderboard table .medal{ height: 25px; width: auto; } comp-tabs .submission-tab,[data-is="comp-tabs"] .submission-tab{ margin: 0 auto; width: 100%; } comp-tabs .results-tab,[data-is="comp-tabs"] .results-tab{ margin: 0 auto; width: 100%; } comp-tabs .pages-tab,[data-is="comp-tabs"] .pages-tab{ margin: 0 auto; width: 100%; } comp-tabs .pages-tab .ui.vertical.tabular.menu.pages-menu,[data-is="comp-tabs"] .pages-tab .ui.vertical.tabular.menu.pages-menu{ width: 100% !important; padding-right: 3px; } comp-tabs .pages-tab .vertical.tabular.menu > .item,[data-is="comp-tabs"] .pages-tab .vertical.tabular.menu > .item{ cursor: pointer; } comp-tabs .pages-tab .vertical.tabular.menu > .active.item,[data-is="comp-tabs"] .pages-tab .vertical.tabular.menu > .active.item{ z-index: 1; } comp-tabs .pages-tab .twelve.wide.column .tab.active,[data-is="comp-tabs"] .pages-tab .twelve.wide.column .tab.active{ z-index: 0; background-color: #fff; margin: 0 -2.9em; padding: 2em; border: solid 1px #dcdcdc; } comp-tabs .phases-tab,[data-is="comp-tabs"] .phases-tab{ margin: 0 auto; width: 100%; color: #2c3f4c; padding: 50px 0 150px; } comp-tabs .phases-tab .underline,[data-is="comp-tabs"] .phases-tab .underline{ border-bottom: 1px solid #0bb; display: inline-block; line-height: 0.9em; } comp-tabs .phases-tab .ui.segments,[data-is="comp-tabs"] .phases-tab .ui.segments{ font-family: 'Overpass Mono', monospace; font-size: 14px; } comp-tabs .phases-tab .ui.styled.accordion,[data-is="comp-tabs"] .phases-tab .ui.styled.accordion{ width: 100%; } comp-tabs .phases-tab .phase-header,[data-is="comp-tabs"] .phases-tab .phase-header{ font-family: 'Roboto', sans-serif; font-size: 20px !important; text-transform: uppercase; font-weight: 600; background-color: #e5fbfa; color: #2c3f4c !important; } comp-tabs .phases-tab .ui.styled.accordion .phase-header.active,[data-is="comp-tabs"] .phases-tab .ui.styled.accordion .phase-header.active{ color: #2c3f4c !important; border-bottom: solid 1px #dcdcdc !important; background: #05b5ad !important; } comp-tabs .phases-tab .phase-header:hover,[data-is="comp-tabs"] .phases-tab .phase-header:hover{ color: #2c3f4c !important; background: #05b5ad !important; } comp-tabs .phases-tab .phase-label,[data-is="comp-tabs"] .phases-tab .phase-label{ font-size: 15px; font-weight: 600; font-family: 'Roboto', sans-serif; color: #0bb; text-transform: uppercase; } comp-tabs .phases-tab .phase-info,[data-is="comp-tabs"] .phases-tab .phase-info{ margin-bottom: 10px; } comp-tabs .admin-tab,[data-is="comp-tabs"] .admin-tab{ margin: 0 auto; width: 100%; } comp-tabs pre,[data-is="comp-tabs"] pre{ background: #f4f4f4; border: 1px solid #ddd; border-left: 3px solid #0bb; border-radius: 6px; color: #666; page-break-inside: avoid; font-family: monospace; font-size: 0.85em; line-height: 1.6; margin-bottom: 1.6em; max-width: 100%; overflow: auto; padding: 1em 1.5em; display: block; word-wrap: break-word; } comp-tabs .ui.table,[data-is="comp-tabs"] .ui.table{ color: #2c3f4c !important; } comp-tabs .ui.table thead > tr > th,[data-is="comp-tabs"] .ui.table thead > tr > th{ color: #2c3f4c !important; background-color: #f2faff !important; } comp-tabs .ui.table .medal,[data-is="comp-tabs"] .ui.table .medal{ height: 25px; width: auto; }
+comp-detail-timeline *,[data-is="comp-detail-timeline"] *{ box-sizing: border-box; } comp-detail-timeline section,[data-is="comp-detail-timeline"] section{ width: 70%; margin: 0 auto 2rem; } comp-detail-timeline .phase-date,[data-is="comp-detail-timeline"] .phase-date{ display: block; } comp-detail-timeline .progress-bar,[data-is="comp-detail-timeline"] .progress-bar{ display: flex; justify-content: space-between; list-style: none; padding: 0; margin: 0 0 1rem 0; } comp-detail-timeline .progress-bar li,[data-is="comp-detail-timeline"] .progress-bar li{ flex: 2; position: relative; padding: 0 0 14px 0; font-size: 0.875rem; line-height: 1.5; color: #0bb; font-weight: 600; white-space: nowrap; overflow: visible; min-width: 0; text-align: center; } comp-detail-timeline .progress-bar li:first-child,[data-is="comp-detail-timeline"] .progress-bar li:first-child,comp-detail-timeline .progress-bar li:last-child,[data-is="comp-detail-timeline"] .progress-bar li:last-child{ flex: 1; } comp-detail-timeline .progress-bar li:first-child,[data-is="comp-detail-timeline"] .progress-bar li:first-child{ text-align: left; } comp-detail-timeline .progress-bar li:last-child,[data-is="comp-detail-timeline"] .progress-bar li:last-child{ text-align: right; } comp-detail-timeline .progress-bar li:before,[data-is="comp-detail-timeline"] .progress-bar li:before{ content: ""; display: block; width: 12px; height: 12px; background-color: #e8e8e8; border-radius: 50%; border: 2px solid #f6f8fa; position: absolute; left: calc(50% - 6px); bottom: -7px; z-index: 3; transition: all 0.2s ease-in-out; } comp-detail-timeline .progress-bar li:first-child:before,[data-is="comp-detail-timeline"] .progress-bar li:first-child:before{ left: 0; } comp-detail-timeline .progress-bar li:last-child:before,[data-is="comp-detail-timeline"] .progress-bar li:last-child:before{ right: 0; left: auto; } comp-detail-timeline .progress-bar div,[data-is="comp-detail-timeline"] .progress-bar div{ transition: opacity 0.3s ease-in-out; } comp-detail-timeline .progress-bar li:not(.is-active) div,[data-is="comp-detail-timeline"] .progress-bar li:not(.is-active) div{ opacity: 0; } comp-detail-timeline .prog-span,[data-is="comp-detail-timeline"] .prog-span{ width: 100%; } comp-detail-timeline .progress-bar li:first-child .prog-span,[data-is="comp-detail-timeline"] .progress-bar li:first-child .prog-span{ width: 200%; left: 0 !important; } comp-detail-timeline .progress-bar .is-complete .prog-span,[data-is="comp-detail-timeline"] .progress-bar .is-complete .prog-span{ display: inherit; position: absolute; bottom: -2px; left: 50%; z-index: 2; background-image: linear-gradient(to right, #0bb, #0bb); height: 2px; } comp-detail-timeline .progress-bar .is-active:not(:last-child) .prog-span,[data-is="comp-detail-timeline"] .progress-bar .is-active:not(:last-child) .prog-span,comp-detail-timeline .progress-bar .is-active:not(:first-child) .prog-span,[data-is="comp-detail-timeline"] .progress-bar .is-active:not(:first-child) .prog-span{ display: inherit; position: absolute; bottom: -2px; left: 50%; z-index: 2; background-image: linear-gradient(to right, #dcdcdc, #dcdcdc); height: 2px; } comp-detail-timeline .progress-bar li:last-child div,[data-is="comp-detail-timeline"] .progress-bar li:last-child div{ display: block; position: relative; } comp-detail-timeline .progress-bar .is-complete:before,[data-is="comp-detail-timeline"] .progress-bar .is-complete:before{ background-color: #0bb; } comp-detail-timeline .progress-bar .is-active:before,[data-is="comp-detail-timeline"] .progress-bar .is-active:before,comp-detail-timeline .progress-bar li:hover:before,[data-is="comp-detail-timeline"] .progress-bar li:hover:before,comp-detail-timeline .progress-bar .is-hovered:before,[data-is="comp-detail-timeline"] .progress-bar .is-hovered:before{ background-color: #f6f8fa; border-color: #0bb; } comp-detail-timeline .progress-bar li:hover:before,[data-is="comp-detail-timeline"] .progress-bar li:hover:before,comp-detail-timeline .progress-bar .is-hovered:before,[data-is="comp-detail-timeline"] .progress-bar .is-hovered:before{ transform: scale(1.33); } comp-detail-timeline .progress-bar li:hover div,[data-is="comp-detail-timeline"] .progress-bar li:hover div,comp-detail-timeline .progress-bar li.is-hovered div,[data-is="comp-detail-timeline"] .progress-bar li.is-hovered div{ opacity: 1; } comp-detail-timeline .progress-bar:hover li:not(:hover) div,[data-is="comp-detail-timeline"] .progress-bar:hover li:not(:hover) div{ opacity: 0; } comp-detail-timeline .progress-bar .has-changes,[data-is="comp-detail-timeline"] .progress-bar .has-changes{ opacity: 1 !important; } comp-detail-timeline .progress-bar .has-changes:before,[data-is="comp-detail-timeline"] .progress-bar .has-changes:before{ content: ""; display: block; width: 12px; height: 12px; position: absolute; left: calc(50% - 4px); bottom: -20px; background-image: url("data:image/svg+xmlcharset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%208%208%22%3E%3Cpath%20fill%3D%22%23ed1c24%22%20d%3D%22M4%200l4%208H0z%22%2F%3E%3C%2Fsvg%3E"); }
+competition-detail .comp-detail-paragraph-text,[data-is="competition-detail"] .comp-detail-paragraph-text{ font-size: 16px !important; line-height: 20px !important; } competition-detail,[data-is="competition-detail"]{ display: block; width: 100%; height: 100%; } competition-detail .ui.inverted.table,[data-is="competition-detail"] .ui.inverted.table{ background: #44586b; } competition-detail .ui.modal,[data-is="competition-detail"] .ui.modal{ margin: 20px; } competition-detail .ui.table,[data-is="competition-detail"] .ui.table{ color: $blue !important; } competition-detail .ui.table thead > tr > th,[data-is="competition-detail"] .ui.table thead > tr > th{ color: $blue !important; background-color: $lightblue !important; }
+leaderboards,[data-is="leaderboards"]{ display: block; width: 100%; height: 100%; } leaderboards .celled.table.selectable,[data-is="leaderboards"] .celled.table.selectable{ margin: 1em 0; } leaderboards table tbody .center.aligned td,[data-is="leaderboards"] table tbody .center.aligned td{ color: #8c8c8c; } leaderboards .index-column,[data-is="leaderboards"] .index-column{ min-width: 55px; } leaderboards .leaderboard-title,[data-is="leaderboards"] .leaderboard-title{ position: absolute; left: 50%; transform: translate(-50%, -50%); } leaderboards .ui.table > thead > tr.task-row > th,[data-is="leaderboards"] .ui.table > thead > tr.task-row > th{ background-color: #e8f6ff !important; } leaderboards .eye-icon-link,[data-is="leaderboards"] .eye-icon-link{ position: relative; display: block; } leaderboards .eye-icon,[data-is="leaderboards"] .eye-icon{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); } leaderboards .text-bold,[data-is="leaderboards"] .text-bold{ font-weight: bold; }
+log_window .graph-frame,[data-is="log_window"] .graph-frame{ width: 100%; height: 70vh; border: none; overflow: scroll; } log_window .submission_output,[data-is="log_window"] .submission_output{ height: 400px; padding: 15px !important; overflow: auto; }
+submission-limit .submission-container,[data-is="submission-limit"] .submission-container{ margin-top: 1em; background-color: #fff; padding: 2em; border: solid 1px rgba(220,220,220,0.863); display: flex; } submission-limit .col,[data-is="submission-limit"] .col{ flex: 1; display: flex; flex-direction: column; justify-content: space-between; } submission-limit .col-content,[data-is="submission-limit"] .col-content{ font-weight: bold; text-align: center; } submission-limit .badge,[data-is="submission-limit"] .badge{ padding: 0.5em 1em; text-align: center; display: inline-block; width: max-content; margin: 0 auto; margin-top: 0.5em; border-radius: 5px; } submission-limit .badge-green,[data-is="submission-limit"] .badge-green{ background-color: #a5d6a7; } submission-limit .badge-yellow,[data-is="submission-limit"] .badge-yellow{ background-color: #fff59d; } submission-limit .badge-orange,[data-is="submission-limit"] .badge-orange{ background-color: #ffcc80; } submission-limit .badge-pink,[data-is="submission-limit"] .badge-pink{ background-color: #ff80ab; } submission-limit .badge-red,[data-is="submission-limit"] .badge-red{ background-color: #e57373; }
+submission-manager,[data-is="submission-manager"]{ display: block; margin: 2em 0; min-height: 90vh; } submission-manager .admin-buttons,[data-is="submission-manager"] .admin-buttons{ padding-bottom: 20px; } submission-manager .on-leaderboard:hover,[data-is="submission-manager"] .on-leaderboard:hover{ cursor: auto; background-color: #21ba45 !important; } submission-manager .submission_row,[data-is="submission-manager"] .submission_row{ height: 52px; } submission-manager .submission_row:hover,[data-is="submission-manager"] .submission_row:hover{ cursor: pointer; } submission-manager table tbody .center.aligned td,[data-is="submission-manager"] table tbody .center.aligned td{ color: #8c8c8c; } submission-manager .failed.question.circle.icon,[data-is="submission-manager"] .failed.question.circle.icon{ color: #2c3f4c; } submission-manager .checkbox-label,[data-is="submission-manager"] .checkbox-label{ margin-left: 5px; } submission-manager .soft-deleted,[data-is="submission-manager"] .soft-deleted{ background-color: #ffdede !important; }
+submission-modal .log,[data-is="submission-modal"] .log{ height: 465px; max-height: 465px; overflow: auto; } submission-modal .leaderboard-tab,[data-is="submission-modal"] .leaderboard-tab{ height: 515px; overflow: auto; } submission-modal .modal-tab,[data-is="submission-modal"] .modal-tab{ height: 530px; } submission-modal .file-download,[data-is="submission-modal"] .file-download{ margin-top: 25px !important; margin-botton: 25px !important; } submission-modal .graph-frame,[data-is="submission-modal"] .graph-frame{ height: 100%; width: 100%; overflow: scroll; border: none; } submission-modal #downloads thead tr th,[data-is="submission-modal"] #downloads thead tr th,submission-modal #downloads tbody tr td,[data-is="submission-modal"] #downloads tbody tr td{ font-size: 16px !important; } submission-modal .inverted,[data-is="submission-modal"] .inverted,submission-modal textarea,[data-is="submission-modal"] textarea{ color: #fff; background: #1b1c1d; width: 100%; height: 98%; }
+submission-scores .leaderboard,[data-is="submission-scores"] .leaderboard{ padding-bottom: 10px; }
+submission-upload,[data-is="submission-upload"]{ display: block; width: 100%; height: 100%; margin-bottom: 15px; } submission-upload .required-answer::after,[data-is="submission-upload"] .required-answer::after{ margin: -0.2em 0 0 0.2em; content: '*'; color: #db2828; } submission-upload .submission-form,[data-is="submission-upload"] .submission-form{ background-color: #fff; padding: 2em; margin: 0, -2.9em; border: solid 1px rgba(220,220,220,0.863); margin-bottom: 2em; } submission-upload .submission-form-question,[data-is="submission-upload"] .submission-form-question{ padding: 0.66em 2em; } submission-upload .submission-form-question label,[data-is="submission-upload"] .submission-form-question label{ font-size: 16px; font-weight: 600; } submission-upload #submission-output .submission-tabs,[data-is="submission-upload"] #submission-output .submission-tabs{ overflow-x: scroll; padding-bottom: 10px; } submission-upload #submission-output .submission-tabs .item,[data-is="submission-upload"] #submission-output .submission-tabs .item{ border: solid 1px #efefef; cursor: pointer; } submission-upload #submission-output .submission-tabs .item:hover,[data-is="submission-upload"] #submission-output .submission-tabs .item:hover{ background-color: #f5f5f5; } submission-upload #submission-output .submission-tabs .item.active,[data-is="submission-upload"] #submission-output .submission-tabs .item.active{ border: solid 1px rgba(3,187,187,0.678); } submission-upload code,[data-is="submission-upload"] code{ background: #d1dffa; } submission-upload .submission-container,[data-is="submission-upload"] .submission-container{ margin-top: 1em; } submission-upload .hidden,[data-is="submission-upload"] .hidden{ display: none; } submission-upload .submission-output-container,[data-is="submission-upload"] .submission-output-container{ margin-top: 15px; } submission-upload .submission-output-container .ui.basic.segment,[data-is="submission-upload"] .submission-output-container .ui.basic.segment{ min-height: 300px; display: none; overflow-y: auto; } submission-upload .graph-container,[data-is="submission-upload"] .graph-container{ display: block; height: 250px; }
+competition-collaborators .chevron,[data-is="competition-collaborators"] .chevron,competition-collaborators .icon-button,[data-is="competition-collaborators"] .icon-button{ cursor: pointer; }
+competition-details .fact-sheet-question,[data-is="competition-details"] .fact-sheet-question{ border: 1px solid rgba(220,220,220,0.863); background-color: #fff; padding: 1.5em; }
+competition-leaderboards a.icon-button:hover,[data-is="competition-leaderboards"] a.icon-button:hover{ cursor: pointer; }
+competition-pages .chevron,[data-is="competition-pages"] .chevron,competition-pages .icon-button,[data-is="competition-pages"] .icon-button{ cursor: pointer; }
+competition-phases .chevron,[data-is="competition-phases"] .chevron,competition-phases .icon-button,[data-is="competition-phases"] .icon-button{ cursor: pointer; }
+competition-form .publish-checkbox,[data-is="competition-form"] .publish-checkbox{ margin-right: 10px; } competition-form .ui.basic.red.button.discard:hover,[data-is="competition-form"] .ui.basic.red.button.discard:hover{ background-color: #db2828 !important; color: #fff !important; } competition-form .ui.basic.secondary.button:hover,[data-is="competition-form"] .ui.basic.secondary.button:hover{ background-color: #1b1c1d !important; color: #fff !important; }
+public-list { width: 100%; } public-list,[data-is="public-list"]{ display: block; margin-bottom: 5px; } public-list .page-header,[data-is="public-list"] .page-header{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; } public-list .page-header .action-buttons,[data-is="public-list"] .page-header .action-buttons{ display: flex; gap: 10px; } public-list .page-title,[data-is="public-list"] .page-title{ margin: 0; font-size: 24px; font-weight: bold; color: #1b1b1b; } public-list .create-btn,[data-is="public-list"] .create-btn{ font-size: 14px; padding: 0.5em 1em; background-color: #43637a; color: #fff; text-decoration: none; border-radius: 4px; display: inline-block; cursor: pointer; transition: background-color 0.2s ease; } public-list .create-btn:hover,[data-is="public-list"] .create-btn:hover{ background-color: #2d3f4d; color: #fff; text-decoration: none; } public-list .content-container,[data-is="public-list"] .content-container{ display: flex; width: 100%; } public-list .filters-panel,[data-is="public-list"] .filters-panel{ width: 250px; flex-shrink: 0; border: 1px solid #ddd; padding: 10px; margin-right: 10px; margin-left: 0 !important; background: #f9f9f9; } public-list .filters-panel input[type="text"],[data-is="public-list"] .filters-panel input[type="text"]{ width: 100%; padding: 5px; margin: 5px 0 5px 0; border: 1px solid #ddd; border-radius: 4px; } public-list .filters-panel input[type="radio"],[data-is="public-list"] .filters-panel input[type="radio"],public-list .filters-panel input[type="checkbox"],[data-is="public-list"] .filters-panel input[type="checkbox"]{ margin-right: 5px; } public-list .filter-group,[data-is="public-list"] .filter-group{ margin-bottom: 20px; } public-list .filter-label,[data-is="public-list"] .filter-label{ font-size: 14px; font-weight: bold; display: block; margin-bottom: 8px; } public-list .filter-group label,[data-is="public-list"] .filter-group label{ display: block; font-size: 13px; margin-bottom: 6px; } public-list .list-panel,[data-is="public-list"] .list-panel{ flex-grow: 1; } public-list .pagination-nav,[data-is="public-list"] .pagination-nav{ padding: 10px 0; width: 100%; text-align: center; margin-bottom: 20px; } public-list .float-left,[data-is="public-list"] .float-left{ float: left; } public-list .float-right,[data-is="public-list"] .float-right{ float: right; } public-list .center,[data-is="public-list"] .center{ margin: auto; } public-list .link-no-deco,[data-is="public-list"] .link-no-deco{ all: unset; text-decoration: none; cursor: pointer; width: 100%; } public-list .tile-wrapper,[data-is="public-list"] .tile-wrapper{ border: solid 1px #dcdcdc; display: inline-flex; min-width: 425px; background-color: #fff; transition: all 75ms ease-in-out; color: #909090; width: 100%; margin-bottom: 6px; } public-list .tile-wrapper:hover,[data-is="public-list"] .tile-wrapper:hover{ box-shadow: 0 3px 4px -1px #cac9c9; transition: all 75ms ease-in-out; background-color: #e6edf2; border: solid 1px #a5b7c5; } public-list .tile-wrapper:hover .comp-stats,[data-is="public-list"] .tile-wrapper:hover .comp-stats{ background-color: #344d5e; transition: background-color 75ms ease-in-out; } public-list .img-wrapper,[data-is="public-list"] .img-wrapper{ padding: 5px; align-self: center; } public-list .img-wrapper img,[data-is="public-list"] .img-wrapper img{ max-height: 60px !important; max-width: 60px !important; margin: 0 auto; } public-list .comp-info,[data-is="public-list"] .comp-info{ width: calc(100% - 140px - 80px); } public-list .comp-info .heading,[data-is="public-list"] .comp-info .heading{ text-align: left; padding: 5px; color: #1b1b1b; margin-bottom: 0; } public-list .comp-info .comp-description,[data-is="public-list"] .comp-info .comp-description{ text-align: left; font-size: 13px; line-height: 1.15em; margin: 0.35em; } public-list .organizer,[data-is="public-list"] .organizer{ font-size: 13px; text-align: left; margin: 0.35em; } public-list .comp-stats,[data-is="public-list"] .comp-stats{ background: #405e73; color: #e8e8e8; padding: 10px; text-align: center; font-size: 12px; width: 140px; } public-list .loading-indicator,[data-is="public-list"] .loading-indicator{ display: flex; align-items: center; padding: 20px; width: 100%; margin: 0 auto; } public-list .spinner,[data-is="public-list"] .spinner{ border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-top-color: #3498db; animation: spin 1s ease-in-out infinite; } @-moz-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @-webkit-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @-o-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+competition-tile,[data-is="competition-tile"]{ display: block; margin-bottom: 5px; } competition-tile .link-no-deco,[data-is="competition-tile"] .link-no-deco{ all: unset; text-decoration: none; cursor: pointer; } competition-tile .tile-wrapper,[data-is="competition-tile"] .tile-wrapper{ border: solid 1px #dcdcdc; display: inline-grid; grid-template-columns: 0.1fr 3fr 1.3fr; min-width: 425px; background-color: #fff; transition: all 75ms ease-in-out; color: #909090; width: 100%; } competition-tile .tile-wrapper:hover,[data-is="competition-tile"] .tile-wrapper:hover{ box-shadow: 0 3px 4px -1px #9c9c9c; transition: all 75ms ease-in-out; background-color: #e8e8e8; border: solid 1px #b9b9b9; } competition-tile .tile-wrapper:hover .comp-stats,[data-is="competition-tile"] .tile-wrapper:hover .comp-stats{ background-color: #344d5e; transition: background-color 75ms ease-in-out; } competition-tile .tile-wrapper.featured,[data-is="competition-tile"] .tile-wrapper.featured{ border: solid 2px #ffd700; background-color: #fffbea ; box-shadow: 0 0 10px rgba(255,215,0,0.6); } competition-tile .img-wrapper,[data-is="competition-tile"] .img-wrapper{ padding: 5px; align-self: center; } competition-tile .img-wrapper img,[data-is="competition-tile"] .img-wrapper img{ max-height: 60px !important; max-width: 60px !important; margin: 0 auto; } competition-tile .comp-info .heading,[data-is="competition-tile"] .comp-info .heading{ text-align: left; padding: 5px; color: #1b1b1b; margin-bottom: 0; } competition-tile .featured-badge,[data-is="competition-tile"] .featured-badge{ background-color: #ffd700; color: #222; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 5px; margin-left: 8px; display: inline-block; } competition-tile .comp-info .comp-description,[data-is="competition-tile"] .comp-info .comp-description{ text-align: left; font-size: 13px; line-height: 1.15em; margin: 0.35em; } competition-tile .comp-stats,[data-is="competition-tile"] .comp-stats{ background: #405e73; color: #e8e8e8; padding: 10px; text-align: center; font-size: 12px; } competition-tile .organizer,[data-is="competition-tile"] .organizer{ font-size: 13px; text-align: left; margin: 0.35em; }
+competition-card :self,[data-is="competition-card"] :self{ display: block; }
+front-page-competitions { margin: 3em 1.5em; } front-page-competitions .show-more,[data-is="front-page-competitions"] .show-more{ display: block; width: fit-content; margin: 20px auto; padding: 10px 20px; background-color: #4a6778; color: #fff; text-align: center; border-radius: 5px; font-size: 1.1em; text-decoration: none; transition: background-color 0.3s, transform 0.3s; } front-page-competitions .show-more:hover,[data-is="front-page-competitions"] .show-more:hover{ background-color: #467799; transform: scale(1.05); text-decoration: none; } front-page-competitions .sub-header-link,[data-is="front-page-competitions"] .sub-header-link{ line-height: 0.25em; } front-page-competitions .view-all-comps,[data-is="front-page-competitions"] .view-all-comps{ font-size: 0.5em; font-weight: 100; } front-page-competitions .view-all-comps:hover,[data-is="front-page-competitions"] .view-all-comps:hover{ text-decoration: underline; }
+competition-upload,[data-is="competition-upload"]{ padding: 50px 0; } competition-upload h1.header,[data-is="competition-upload"] h1.header{ margin-bottom: 35px !important; } competition-upload .task-status-display,[data-is="competition-upload"] .task-status-display{ max-height: 0; overflow: hidden; } competition-upload .loader,[data-is="competition-upload"] .loader{ padding-bottom: 20px; } competition-upload .flex-header,[data-is="competition-upload"] .flex-header{ display: flex; flex-direction: row; justify-content: space-between; }
+dataset-create .dataset-container,[data-is="dataset-create"] .dataset-container{ max-width: 700px; margin: 2rem auto; padding: 2rem; background: #fff; border: 1px solid #ddd; border-radius: 8px; } dataset-create .form-note,[data-is="dataset-create"] .form-note{ font-style: italic; color: #888; font-size: 0.9rem; margin-top: 0.5rem; } dataset-create input[type="file"],[data-is="dataset-create"] input[type="file"]{ border: 1px solid #ccc; padding: 0.75rem; border-radius: 4px; } dataset-create .bg-codabench,[data-is="dataset-create"] .bg-codabench{ background-color: #43637a !important; color: #fff !important; } dataset-create .bg-codabench:hover,[data-is="dataset-create"] .bg-codabench:hover{ background-color: #2d3f4d !important; }
+dataset-detail .dataset-container,[data-is="dataset-detail"] .dataset-container{ max-width: 700px; margin: 2rem auto; padding: 2rem; background: #fff; border: 1px solid #ddd; border-radius: 8px; } dataset-detail .bg-codabench,[data-is="dataset-detail"] .bg-codabench{ background-color: #43637a !important; color: #fff !important; } dataset-detail .bg-codabench:hover,[data-is="dataset-detail"] .bg-codabench:hover{ background-color: #2d3f4d !important; } dataset-detail table.ui.celled.table td,[data-is="dataset-detail"] table.ui.celled.table td{ vertical-align: top; } dataset-detail .green,[data-is="dataset-detail"] .green{ color: #009022; }
+data-management .dataset-row:hover,[data-is="data-management"] .dataset-row:hover{ cursor: pointer; }
+public-datasets { width: 100%; } public-datasets,[data-is="public-datasets"]{ display: block; margin-bottom: 5px; } public-datasets .page-header,[data-is="public-datasets"] .page-header{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; } public-datasets .page-title,[data-is="public-datasets"] .page-title{ margin: 0; font-size: 24px; font-weight: bold; color: #1b1b1b; } public-datasets .create-btn,[data-is="public-datasets"] .create-btn{ font-size: 14px; padding: 0.5em 1em; background-color: #43637a; color: #fff; text-decoration: none; border-radius: 4px; display: inline-block; cursor: pointer; transition: background-color 0.2s ease; } public-datasets .create-btn:hover,[data-is="public-datasets"] .create-btn:hover{ background-color: #2d3f4d; color: #fff; text-decoration: none; } public-datasets .content-container,[data-is="public-datasets"] .content-container{ display: flex; width: 100%; } public-datasets .filters-panel,[data-is="public-datasets"] .filters-panel{ width: 250px; flex-shrink: 0; border: 1px solid #ddd; padding: 10px; margin-right: 10px; background: #f9f9f9; } public-datasets .filters-panel input[type="text"],[data-is="public-datasets"] .filters-panel input[type="text"]{ width: 100%; padding: 5px; margin: 5px 0 5px 0; border: 1px solid #ddd; border-radius: 4px; } public-datasets .filters-panel input[type="radio"],[data-is="public-datasets"] .filters-panel input[type="radio"],public-datasets .filters-panel input[type="checkbox"],[data-is="public-datasets"] .filters-panel input[type="checkbox"]{ margin-right: 5px; } public-datasets .filter-group,[data-is="public-datasets"] .filter-group{ margin-bottom: 20px; } public-datasets .filter-label,[data-is="public-datasets"] .filter-label{ font-size: 14px; font-weight: bold; display: block; margin-bottom: 8px; } public-datasets .filter-group label,[data-is="public-datasets"] .filter-group label{ display: block; font-size: 13px; margin-bottom: 6px; } public-datasets .list-panel,[data-is="public-datasets"] .list-panel{ flex-grow: 1; } public-datasets .pagination-nav,[data-is="public-datasets"] .pagination-nav{ padding: 10px 0; width: 100%; text-align: center; margin-bottom: 20px; } public-datasets .float-left,[data-is="public-datasets"] .float-left{ float: left; } public-datasets .float-right,[data-is="public-datasets"] .float-right{ float: right; } public-datasets .link-no-deco,[data-is="public-datasets"] .link-no-deco{ all: unset; text-decoration: none; cursor: pointer; width: 100%; } public-datasets .full-width,[data-is="public-datasets"] .full-width{ width: 100%; } public-datasets .tile-wrapper,[data-is="public-datasets"] .tile-wrapper{ display: flex; border: 1px solid #ddd; padding: 1em; margin-bottom: 1em; border-radius: 5px; background-color: #f9f9f9; transition: all 75ms ease-in-out; } public-datasets .tile-wrapper:hover,[data-is="public-datasets"] .tile-wrapper:hover{ box-shadow: 0 3px 4px -1px #cac9c9; background-color: #e6edf2; border: solid 1px #a5b7c5; } public-datasets .dataset-info,[data-is="public-datasets"] .dataset-info{ width: 100%; } public-datasets .dataset-info .heading,[data-is="public-datasets"] .dataset-info .heading{ font-size: 1.2em; margin-bottom: 0.3em; } public-datasets .dataset-description,[data-is="public-datasets"] .dataset-description{ margin-bottom: 0.5em; font-size: 13px; line-height: 1.15em; color: #555; } public-datasets .uploader,[data-is="public-datasets"] .uploader{ font-size: 0.9em; color: #777; } public-datasets .green,[data-is="public-datasets"] .green{ color: #009022; } public-datasets .dataset-stats,[data-is="public-datasets"] .dataset-stats{ display: flex; flex-wrap: wrap; gap: 1em; font-size: 0.9em; align-items: center; margin-top: 0.5em; color: #555; } public-datasets .dataset-stats > div,[data-is="public-datasets"] .dataset-stats > div{ display: flex; align-items: center; gap: 0.4em; } public-datasets .ui.mini.primary.button,[data-is="public-datasets"] .ui.mini.primary.button{ padding: 0.4em 0.8em; font-size: 0.85em; } public-datasets .loading-indicator,[data-is="public-datasets"] .loading-indicator{ display: flex; align-items: center; padding: 20px; width: 100%; margin: 0 auto; } public-datasets .spinner,[data-is="public-datasets"] .spinner{ border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-top-color: #3498db; animation: spin 1s ease-in-out infinite; } @-moz-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @-webkit-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @-o-keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+input-file,[data-is="input-file"]{ display: block; }
+input-text,[data-is="input-text"]{ display: block; }
+loader svg,[data-is="loader"] svg{ position: absolute; left: 50%; transform: translate(-50%, 0); }
+bronze-medal .st0,[data-is="bronze-medal"] .st0{fill:#3D3B38;} bronze-medal .st1,[data-is="bronze-medal"] .st1{fill:none;stroke:#91612C;stroke-width:4;stroke-miterlimit:10;} bronze-medal .st2,[data-is="bronze-medal"] .st2{fill: #af7535;} bronze-medal .st3,[data-is="bronze-medal"] .st3{fill: #5b3800;} bronze-medal .st4,[data-is="bronze-medal"] .st4{font-family:'GothamRounded-Book';} bronze-medal .st5,[data-is="bronze-medal"] .st5{font-size:45.9409px;} bronze-medal .st6,[data-is="bronze-medal"] .st6{fill:#56524B;}
+fifth-place-medal .st0,[data-is="fifth-place-medal"] .st0{fill:#3D3B38;} fifth-place-medal .st1,[data-is="fifth-place-medal"] .st1{fill:none;stroke:#68625C;stroke-width:4;stroke-miterlimit:10;} fifth-place-medal .st2,[data-is="fifth-place-medal"] .st2{fill: #c8bcb1;} fifth-place-medal .st3,[data-is="fifth-place-medal"] .st3{fill:#35322C;} fifth-place-medal .st4,[data-is="fifth-place-medal"] .st4{font-family:'GothamRounded-Book';} fifth-place-medal .st5,[data-is="fifth-place-medal"] .st5{font-size:45.9409px;} fifth-place-medal .st6,[data-is="fifth-place-medal"] .st6{fill:#56524B;}
+fourth-place-medal .st0,[data-is="fourth-place-medal"] .st0{fill:#3D3B38;} fourth-place-medal .st1,[data-is="fourth-place-medal"] .st1{fill:none;stroke:#847661;stroke-width:4;stroke-miterlimit:10;} fourth-place-medal .st2,[data-is="fourth-place-medal"] .st2{fill: #c2ad8f;} fourth-place-medal .st3,[data-is="fourth-place-medal"] .st3{fill:#353126;} fourth-place-medal .st4,[data-is="fourth-place-medal"] .st4{font-family:'GothamRounded-Book';} fourth-place-medal .st5,[data-is="fourth-place-medal"] .st5{font-size:45.9409px;} fourth-place-medal .st6,[data-is="fourth-place-medal"] .st6{fill:#56524B;}
+gold-medal .st0,[data-is="gold-medal"] .st0{fill:#3D3B38;} gold-medal .st1,[data-is="gold-medal"] .st1{fill:none;stroke:#F9AC31;stroke-width:4;stroke-miterlimit:10;} gold-medal .st2,[data-is="gold-medal"] .st2{fill:#F9AC31;} gold-medal .st3,[data-is="gold-medal"] .st3{fill: #cc8218;} gold-medal .st4,[data-is="gold-medal"] .st4{font-family:'GothamRounded-Book';} gold-medal .st5,[data-is="gold-medal"] .st5{font-size:45.9409px;} gold-medal .st6,[data-is="gold-medal"] .st6{fill:#56524B;}
+silver-medal .st0,[data-is="silver-medal"] .st0{fill:#3D3B38;} silver-medal .st1,[data-is="silver-medal"] .st1{fill:none;stroke:#C1BAB0;stroke-width:4;stroke-miterlimit:10;} silver-medal .st2,[data-is="silver-medal"] .st2{fill:#C1BAB0;} silver-medal .st3,[data-is="silver-medal"] .st3{fill: #7f7d7a;} silver-medal .st4,[data-is="silver-medal"] .st4{font-family:'GothamRounded-Book';} silver-medal .st5,[data-is="silver-medal"] .st5{font-size:45.9409px;} silver-medal .st6,[data-is="silver-medal"] .st6{fill:#56524B;}
+organization-user-management #invite-user-button,[data-is="organization-user-management"] #invite-user-button{ position: absolute; top: 14px; right: 14px; }
+profile-account .title,[data-is="profile-account"] .title{ font-size: 24px; font-weight: 600; color: #24292f; } profile-account .danger,[data-is="profile-account"] .danger{ color: #db2828; } profile-account .delete-button,[data-is="profile-account"] .delete-button{ color: #db2828 !important; } profile-account .delete-button:hover,[data-is="profile-account"] .delete-button:hover{ background-color: #db2828 !important; color: #fff !important; }
+profile-detail,[data-is="profile-detail"]{ margin-top: 20px; } profile-detail #avatar,[data-is="profile-detail"] #avatar{ border: solid 1px #000; max-height: 200px; max-width: 200px; } profile-detail .ui.horizontal.divider,[data-is="profile-detail"] .ui.horizontal.divider{ color: #9e9e9e !important; } profile-detail .terminal,[data-is="profile-detail"] .terminal{ color: #9e9e9e; } profile-detail .comp_header,[data-is="profile-detail"] .comp_header{ margin: 5px; } profile-detail .comp_card,[data-is="profile-detail"] .comp_card{ background: #008000; } profile-detail .comp_name,[data-is="profile-detail"] .comp_name{ font-weight: bold; font-size: 24px; vertical-align: -15px; text-align: center; margin: 10px 0; } profile-detail .exchange,[data-is="profile-detail"] .exchange{ color: #008000; } profile-detail .status,[data-is="profile-detail"] .status{ color: #008000 !important; } profile-detail .ui.basic.fluid.button,[data-is="profile-detail"] .ui.basic.fluid.button{ margin-bottom: 10px; } profile-detail .header.content,[data-is="profile-detail"] .header.content{ font-size: 30px; font-weight: bolder; } profile-detail .ui.justified.container,[data-is="profile-detail"] .ui.justified.container{ margin-top: 30px; font-size: 12px; } profile-detail .two.wide.column,[data-is="profile-detail"] .two.wide.column{ margin-bottom: -5px; font-weight: bold; } profile-detail .fourteen.wide.column,[data-is="profile-detail"] .fourteen.wide.column{ margin-bottom: -5px; } profile-detail #horiz-margin,[data-is="profile-detail"] #horiz-margin{ margin-top: 30px; } profile-detail #grid-margin,[data-is="profile-detail"] #grid-margin{ margin-top: 20px; } profile-detail .world.icon,[data-is="profile-detail"] .world.icon{ color: #808080; } profile-detail .twitter.icon,[data-is="profile-detail"] .twitter.icon{ color: #1da1f2; } profile-detail .github.icon,[data-is="profile-detail"] .github.icon{ color: #6e5494; } profile-detail .linkedin.icon,[data-is="profile-detail"] .linkedin.icon{ color: #0077b5; } profile-detail .social-block,[data-is="profile-detail"] .social-block{ margin-bottom: 10px; margin-top: 5px; } profile-detail .about-block,[data-is="profile-detail"] .about-block{ margin-top: 10px; display: flex; flex-direction: column; } profile-detail .flex-container,[data-is="profile-detail"] .flex-container{ display: flex; flex-direction: row; } profile-detail .text-placeholder,[data-is="profile-detail"] .text-placeholder{ color: #9e9e9e; } profile-detail .label,[data-is="profile-detail"] .label{ width: 100px; color: #999; } profile-detail .value,[data-is="profile-detail"] .value{ font-size: 15px; margin-left: 10px; }
+queues-list .popup-button,[data-is="queues-list"] .popup-button{ cursor: pointer; }
+submission-management .submission-row:hover,[data-is="submission-management"] .submission-row:hover{ cursor: pointer; }
+submission_management { width: 100%; } submission_management #table_scroll,[data-is="submission_management"] #table_scroll{ width: 100%; overflow-y: auto; white-space: nowrap; } submission_management .ui.left.attached.rail,[data-is="submission_management"] .ui.left.attached.rail{ padding-top: 157px; text-align: right; } submission_management .ui.right.icon.button,[data-is="submission_management"] .ui.right.icon.button{ border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; } @media all and (max-width: 1235px) { submission_management #left_rail,[data-is="submission_management"] #left_rail{ display: none; } submission_management #horiz_buttons,[data-is="submission_management"] #horiz_buttons{ display: block; } } @media all and (min-width: 1235px) { submission_management .ui.compact.celled.unstackable.table,[data-is="submission_management"] .ui.compact.celled.unstackable.table{ border-top-left-radius: 0 !important; } submission_management #left_rail,[data-is="submission_management"] #left_rail{ display: block; } submission_management #horiz_buttons,[data-is="submission_management"] #horiz_buttons{ display: none; } }
+task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; cursor: pointer; } task-management .benchmark-row,[data-is="task-management"] .benchmark-row{ overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 125px; }</style><style type="text/css">/* Chart.js */
+@-webkit-keyframes chartjs-render-animation{from{opacity:0.99}to{opacity:1}}@keyframes chartjs-render-animation{from{opacity:0.99}to{opacity:1}}.chartjs-render-monitor{-webkit-animation:chartjs-render-animation 0.001s;animation:chartjs-render-animation 0.001s;}</style></head>
+<body class="pushable dimmable">
+
+
+
+<!-- Sidebar Menu -->
+<div class="ui thin sidebar left inverted vertical overlay menu">
+    <div class="ui container">
+        <a href="../../index.html" class="item">Competitions</a>
+        <a class="item">Chahub</a>
+        <a href="https://chagrade.lri.fr/" class="item">Chagrade</a>
+    </div>
+</div>
+
+<div class="pusher">
+    <div id="hamburger_button">
+        <div class="ui icon button">
+            <i class="bars icon"></i>
+        </div>
+    </div>
+    <!-- Page Contents -->
+    <div id="header" class="ui inverted vertical center aligned segment masthead
+        ">
+        <div id="bg"><canvas class="particles-js-canvas-el" width="1280" height="68" style="width: 100%; height: 100%;"></canvas></div>
+        <div class="ui container">
+            <div id="topleft_menu" class="ui secondary inverted menu">
+                <span class="left item">
+                    <a href="../../index.html" id="home-logo">
+                        <img class="ui mini image" src="/static/img/Cha_Logo.png">
+                    </a>
+                    <div class="ui search" id="site-wide-competition-search">
+                        <div class="ui left icon input search-width">
+                            <input id="competition-search" class="prompt" type="text" placeholder="Search Competitions" autocomplete="off">
+                            <i class="search icon"></i>
+                        </div>
+                        <div class="results search-width scrollable-height-limit"></div>
+                    </div>
+                </span>
+                <div class="right menu item">
+                    <a class="item" href="../../competitions/public/index.html">
+                        <i class="ui small trophy icon"></i>
+                        Benchmarks/Competitions
+                    </a>
+                    <a class="item" href="../../datasets/public/index.html">
+                        <i class="ui small database icon"></i>
+                        Datasets
+                    </a>
+                    
+                        <a href="./index.html" class="ui button style_button item">Login</a>
+                        
+                            <a href="../signup.html" class="ui button style_button item">Sign-up</a>
+                        
+                    
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+
+
+<div id="page_content" class="ui container grid">
+    <div class="row">
+        
+<div class="sixteen wide mobile six wide computer centered column">
+    
+    <h2 class="ui blue centered header">
+        Login
+    </h2>
+    
+    <div class="ui stacked segment">
+        <form class="ui form" method="POST">
+            <input type="hidden" name="csrfmiddlewaretoken" value="PNCjQnH5qQ9L4frhxQpFLDHBcAw4w0z2i8WsPliCPBAK9LWcQwJ62LAlQGtSxf9V">
+            
+            
+            <div class="field">
+                <div class="ui left icon input">
+                    <i class="user icon"></i>
+                    <input type="text" name="username" placeholder="username or email" id="id_username" value="" maxlength="150" autofocus="" required="">
+                </div>
+            </div>
+
+            
+            <div class="field">
+                <div class="ui left icon input">
+                    <i class="lock icon"></i>
+                    <input type="password" name="password" placeholder="password" id="id_password" value="" maxlength="150" required="">
+                </div>
+            </div>
+            <button class="ui fluid blue submit button" type="submit">Log In</button>
+            <div class="ui divider"></div>
+            
+                <p>Don't have an account? <a href="../signup.html">Sign Up</a></p>
+            
+            <p><a href="../password_reset/index.html">Forgot your password?</a></p>
+
+            <div class="ui error message"></div>
+        </form>
+    </div>
+    
+
+    <!-- Auth Organization Buttons -->
+    
+</div>
+
+    </div>
+</div>
+<div class="ui inverted vertical footer segment">
+    <div class="ui container">
+        <div class="ui stackable inverted equal height stackable grid">
+            <div class="three wide column">
+                <h4 class="ui inverted header">Chasuite</h4>
+                <div class="ui inverted link list">
+                    <a href="https://codalab.lisn.fr/" class="item">Competitions v1.6</a>
+                    <a href="http://chahub.org/" class="item">Chahub</a>
+                    <a href="https://chagrade.lri.fr/" class="item">Chagrade</a>
+                </div>
+            </div>
+            <div class="three wide column">
+                <h4 class="ui inverted header">About</h4>
+                <div class="ui inverted link list">
+                    <a href="https://github.com/codalab/codalab-competitions/wiki/Project_About_CodaLab" class="item">About</a>
+                    <a href="https://github.com/codalab/codabench" class="item">Github</a>
+                    <a href="https://github.com/codalab/codalab-competitions/wiki/Privacy" class="item">Privacy and Terms</a>
+                    <a href="../../api/docs/index.html" class="item">API Docs</a>
+                </div>
+            </div>
+            <div class="three wide column">
+                
+            </div>
+            <div class="seven wide column">
+                <h4 class="ui inverted header">CodaBench</h4>
+                <p>Join us on <a href="https://github.com/codalab/codabench" target="_blank">Github</a> for contact &amp; bug reports</p>
+                <p>Questions about the platform? See our <a href="https://docs.codabench.org" target="_blank">Docs</a> for more information.</p>
+            </div>
+        </div>
+    </div>
+    
+        <div id="version">
+            <a href="https://github.com/codalab/codabench/releases/tag/v1.23" target="_blank">v1.23</a>
+        </div>
+    
+</div>
+    
+    <user_switch></user_switch>
+
+    <!-- Vendor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.11/lodash.min.js" integrity="sha256-7/yoZS3548fXSRXqc/xYzjsmuW3sFKzuvOCHd06Pmps=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/riot/3.13.2/riot+compiler.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="/static/js/calendar.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/1.0.10/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@1.13.1/build/global/luxon.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/filesize/4.2.1/filesize.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.address/1.6/jquery.address.min.js" integrity="sha256-mLCPYHfNREhSETFQGuowilY3zBAZGnDO2cxCnCEm8/I=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.0.1/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@^2.0.5"></script>
+    <!-- Markdown-->
+    <script src="https://cdn.jsdelivr.net/npm/marked@3.0.7/marked.min.js"></script>
+    <!-- Latex -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.13.11/dist/katex.min.js"></script>
+    <!-- Ours -->
+
+
+
+    <script>
+        
+        STORAGE_TYPE = "s3"
+        MAX_EXECUTION_TIME_LIMIT = "600"
+        CURRENT_DATE_TIME = "2026-02-07T16:54:22.537935+00:00"
+        CODALAB = {
+            state: {
+                user: JSON.parse("{\u0022logged_in\u0022: false}"),
+                public_env_variables: {
+                    MAX_EXECUTION_TIME_LIMIT:MAX_EXECUTION_TIME_LIMIT
+                }
+            }
+        }
+
+        
+        CODALAB.state.user.has_competition_admin_privileges = competition => {
+            let user = CODALAB.state.user
+            if (user.is_superuser || user.is_staff) {
+                return true
+            }
+            let collabs = _.map(competition.collaborators, collab => collab.username)
+            return user.username === competition.created_by || collabs.includes(user.username)
+        }
+
+        // Load in URLs or other django generated goodies
+        URLS = {
+            assets: {
+                header_particles: "/static/particles/header.json"
+            },
+            API: "/api/",
+            STATIC: function (file_name) {
+                return `/static/${file_name}`
+            },
+            // Websockets
+            //WS_SUBMISSION_LISTEN: ""
+
+            // Analytics
+            ANALYTICS_API: function (query_parameters) {
+                return "/api/analytics/" + `?${$.param(query_parameters)}`
+            },
+
+            // Competitions
+            COMPETITION_MANAGEMENT: "/competitions/",
+            COMPETITION_UPLOAD: "/competitions/upload/",
+            COMPETITION_ADD: "/competitions/create/",
+            COMPETITION_DETAIL: function (pk) {
+                return "/competitions/0/".replace(0, pk)
+            },
+            COMPETITION_EDIT: function (pk) {
+                return "/competitions/edit/0/".replace(0, pk)
+            },
+            SECRET_KEY_URL: function (pk, secret_key) {
+                var url = "/competitions/0/".replace(0, pk)
+                return `10.68.138.106${url}?secret_key=${secret_key}`
+            },
+            COMPETITION_GET_ZIP: function (pk) {
+                let urlBase = "/api/competitions/0/results/".replace(0, pk)
+                return urlBase.slice(0, -1) + ".zip"
+            },
+            COMPETITION_GET_CSV: function (pk, phase_id) {
+                let urlBase = "/api/competitions/0/results/".replace(0, pk)
+                let urlParam = "?phase=" + phase_id
+                return urlBase.slice(0, -1) + ".csv" + urlParam
+            },
+            COMPETITION_GET_JSON: function (pk) {
+                let urlBase = "/api/competitions/0/results/".replace(0, pk)
+                return urlBase.slice(0, -1) + ".json"
+            },
+            COMPETITION_GET_JSON_BY_ID: function (pk, phase_id) {
+                let urlBase = "/api/competitions/0/results/".replace(0, pk)
+                let urlParam = "?phase=" + phase_id
+                return urlBase.slice(0, -1) + ".json" + urlParam
+            },
+            // Forums
+            FORUM: function (pk) {
+               return "/forums/0/".replace(0, pk)
+            },
+            // Datasets
+            DATASET_MANAGEMENT: "/datasets/",
+            DATASET_DOWNLOAD: function (key) {
+                return "/datasets/download/0/".replace(0, key)
+            },
+            DATASET_DOWNLOAD_BY_PK: function (pk) {
+                return "/datasets/download/id/0/".replace(0, pk)
+            },
+            DATASET_CREATE: "/datasets/create/",
+            // Tasks
+            TASK_MANAGEMENT: "/tasks/",
+            TASK_DETAIL: function (pk) {
+                return "/tasks/0/".replace(0, pk)
+            },
+            LOGIN: "/accounts/login/",
+            SIGNUP: "/accounts/signup",
+
+        }
+        // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="PNCjQnH5qQ9L4frhxQpFLDHBcAw4w0z2i8WsPliCPBAK9LWcQwJ62LAlQGtSxf9V">').attr('value')
+
+        $(document).ready( function () {
+            $('#site-wide-competition-search').search({
+                apiSettings: {
+                    onResponse: function(codalabResponse) {
+                        _.forEach(codalabResponse, (response) => {
+                            response.url = URLS.COMPETITION_DETAIL(response.id)
+                        })
+                        return {
+                            results: codalabResponse,
+                        }
+                    },
+                    url: `${URLS.API}competitions/?search={query}`
+                },
+            })
+        })
+    </script>
+
+    <script src="/static/js/ours/client.js"></script>
+    <script src="/static/js/ours/init.js"></script>
+    <script src="/static/js/ours/riotjs_mixins.js"></script>
+    <script src="/static/js/ours/utils.js"></script>
+    <script src="/static/js/jquery.form.serializer.js"></script>
+    <script src="/static/js/Chart.bundle.js"></script>
+    <script src="/static/js/reconnecting-websocket.min.js"></script>
+    <script src="/static/generated/riot.js"></script>
+    <script src="/static/js/ours/latex_markdown_html.js"></script>
+
+    
+    
+    
+    
+
+
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="PNCjQnH5qQ9L4frhxQpFLDHBcAw4w0z2i8WsPliCPBAK9LWcQwJ62LAlQGtSxf9V"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
