@@ -728,58 +728,91 @@ function injectFetchShim(html) {
   }
 
   function injectNavShim(html) {
-    const prefix = SITE_PREFIX.replace(/"/g, '\\"');
+    const prefix = (SITE_PREFIX || "").replace(/"/g, '\\"'); // "" locally, "/DeepWaveArena-site" on GH
+  
     const shim = `
   <script id="__nav_shim__">
   (() => {
-    // Maps an internal app route like /competitions/2 -> /pages/competitions/2.html
-    function mapToLocalPagePath(pathname, search) {
-      // Skip things that should remain as-is
+    const BASE = "${prefix}";
+  
+    function mapRouteToLocal(pathname, search, hash) {
       if (pathname.startsWith("/static/") || pathname.startsWith("/__api__/") || pathname.startsWith("/api/")) return null;
   
-      // Mirror the crawler's pageUrlToLocalHtml convention (simplified):
-      // - trailing slash => index.html
-      // - otherwise => .html
-      let p = pathname;
-      if (p.endsWith("/")) p = p + "index";
-      const ext = (p.match(/\\.[a-zA-Z0-9]+$/) || [null])[0];
-      if (!ext) p = p + ".html";
+      // If the app uses short "/2" style routes, map them (optional)
+      if (/^\\/\\d+$/.test(pathname)) pathname = "/competitions" + pathname;
   
-      // We are serving from /pages/...
-      return "${prefix}" + "/pages" + p;
+      // Prefer directory index.html for "route-like" paths
+      // Rule:
+      //  - If it already ends with ".html" keep it
+      //  - Else map to ".../index.html"
+      let p = pathname;
+  
+      if (p.endsWith(".html")) {
+        // If someone links to /pages/... already, don't double-wrap
+        return BASE + "/pages" + p + (search || "") + (hash || "");
+      }
+  
+      // Remove trailing slash then append /index.html
+      p = p.replace(/\\/+$/, "");
+      p = p + "/index.html";
+  
+      return BASE + "/pages" + p + (search || "") + (hash || "");
     }
   
-    // Intercept link clicks
+    function mapAnyUrl(href) {
+      try {
+        const u = new URL(href, window.location.origin);
+        if (u.origin !== window.location.origin) return null;
+        return mapRouteToLocal(u.pathname, u.search, u.hash);
+      } catch {
+        return null;
+      }
+    }
+  
+    // Intercept clicks
     document.addEventListener("click", (e) => {
-      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      const a = e.target?.closest?.("a[href]");
       if (!a) return;
   
       const href = a.getAttribute("href");
       if (!href) return;
   
-      // only same-origin-ish navigations
-      if (href.startsWith("http://") || href.startsWith("https://")) {
-        try {
-          const u = new URL(href);
-          if (u.origin !== window.location.origin) return;
-          const mapped = mapToLocalPagePath(u.pathname, u.search);
-          if (!mapped) return;
-          e.preventDefault();
-          window.location.href = mapped + (u.search || "") + (u.hash || "");
-        } catch { return; }
-        return;
-      }
+      const lower = href.trim().toLowerCase();
+      if (
+        lower.startsWith("#") ||
+        lower.startsWith("mailto:") ||
+        lower.startsWith("tel:") ||
+        lower.startsWith("javascript:") ||
+        lower.startsWith("data:") ||
+        lower.startsWith("blob:")
+      ) return;
   
-      // relative/absolute-path navigations
-      if (href.startsWith("/")) {
-        const mapped = mapToLocalPagePath(href.split("#")[0], "");
-        if (!mapped) return;
-        e.preventDefault();
-        const hash = href.includes("#") ? href.slice(href.indexOf("#")) : "";
-        window.location.href = mapped + hash;
+      // Only intercept internal paths or same-origin URLs
+      if (href.startsWith("/") || href.startsWith("http://") || href.startsWith("https://")) {
+        const mapped = mapAnyUrl(href);
+        if (mapped) {
+          e.preventDefault();
+          window.location.assign(mapped);
+        }
       }
     }, true);
   
+    // Also intercept SPA history navigations (pushState/replaceState)
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+  
+    function rewriteUrlForHistory(url) {
+      if (!url) return url;
+      const mapped = mapAnyUrl(url);
+      return mapped || url;
+    }
+  
+    history.pushState = function(state, title, url) {
+      return origPush.call(this, state, title, rewriteUrlForHistory(url));
+    };
+    history.replaceState = function(state, title, url) {
+      return origReplace.call(this, state, title, rewriteUrlForHistory(url));
+    };
   })();
   </script>
   `;
@@ -809,6 +842,32 @@ function injectFetchShim(html) {
     await writeFileAtomic(localAbs, html);
     return localRel;
   }
+
+function writeShortRouteRedirect(id, targetPath) {
+    // id like "2"
+    // targetPath like "/pages/competitions/2/" or "/pages/competitions/2/index.html"
+    const dir = path.join(OUT_DIR, String(id));
+    ensureDir(dir);
+  
+    // Prefix-aware: local prefix is "", GH Pages is "/DeepWaveArena-site"
+    const base = SITE_PREFIX || "";
+    const target = base + targetPath;
+  
+    const html = `<!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=${target}">
+    <title>Redirect</title>
+  </head>
+  <body>
+    <p>Redirecting to <a href="${target}">${target}</a>…</p>
+    <script>location.replace(${JSON.stringify(target)});</script>
+  </body>
+  </html>`;
+  
+    fs.writeFileSync(path.join(dir, "index.html"), html);
+}
 
 async function crawl() {
   const browser = await chromium.launch({ headless: HEADLESS });
@@ -872,6 +931,20 @@ async function crawl() {
 </body>
 </html>`;
     fs.writeFileSync(rootIndex, html);
+  } catch {}
+
+  try {
+    const compsDir = path.join(OUT_DIR, "pages", "competitions");
+    if (fs.existsSync(compsDir)) {
+      for (const name of fs.readdirSync(compsDir, { withFileTypes: true })) {
+        if (!name.isDirectory()) continue;
+        const id = name.name;
+        if (!/^\d+$/.test(id)) continue;
+  
+        const target = `/pages/competitions/${id}/`; // will load index.html inside
+        writeShortRouteRedirect(id, target);
+      }
+    }
   } catch {}
 
   await browser.close();

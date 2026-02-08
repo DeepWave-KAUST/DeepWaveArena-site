@@ -1,54 +1,86 @@
 <html lang="en"><head>
   <script id="__nav_shim__">
   (() => {
-    // Maps an internal app route like /competitions/2 -> /pages/competitions/2.html
-    function mapToLocalPagePath(pathname, search) {
-      // Skip things that should remain as-is
+    const BASE = "/DeepWaveArena-site";
+  
+    function mapRouteToLocal(pathname, search, hash) {
       if (pathname.startsWith("/static/") || pathname.startsWith("/__api__/") || pathname.startsWith("/api/")) return null;
   
-      // Mirror the crawler's pageUrlToLocalHtml convention (simplified):
-      // - trailing slash => index.html
-      // - otherwise => .html
-      let p = pathname;
-      if (p.endsWith("/")) p = p + "index";
-      const ext = (p.match(/\.[a-zA-Z0-9]+$/) || [null])[0];
-      if (!ext) p = p + ".html";
+      // If the app uses short "/2" style routes, map them (optional)
+      if (/^\/\d+$/.test(pathname)) pathname = "/competitions" + pathname;
   
-      // We are serving from /pages/...
-      return "/DeepWaveArena-site" + "/pages" + p;
+      // Prefer directory index.html for "route-like" paths
+      // Rule:
+      //  - If it already ends with ".html" keep it
+      //  - Else map to ".../index.html"
+      let p = pathname;
+  
+      if (p.endsWith(".html")) {
+        // If someone links to /pages/... already, don't double-wrap
+        return BASE + "/pages" + p + (search || "") + (hash || "");
+      }
+  
+      // Remove trailing slash then append /index.html
+      p = p.replace(/\/+$/, "");
+      p = p + "/index.html";
+  
+      return BASE + "/pages" + p + (search || "") + (hash || "");
     }
   
-    // Intercept link clicks
+    function mapAnyUrl(href) {
+      try {
+        const u = new URL(href, window.location.origin);
+        if (u.origin !== window.location.origin) return null;
+        return mapRouteToLocal(u.pathname, u.search, u.hash);
+      } catch {
+        return null;
+      }
+    }
+  
+    // Intercept clicks
     document.addEventListener("click", (e) => {
-      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      const a = e.target?.closest?.("a[href]");
       if (!a) return;
   
       const href = a.getAttribute("href");
       if (!href) return;
   
-      // only same-origin-ish navigations
-      if (href.startsWith("http://") || href.startsWith("https://")) {
-        try {
-          const u = new URL(href);
-          if (u.origin !== window.location.origin) return;
-          const mapped = mapToLocalPagePath(u.pathname, u.search);
-          if (!mapped) return;
-          e.preventDefault();
-          window.location.href = mapped + (u.search || "") + (u.hash || "");
-        } catch { return; }
-        return;
-      }
+      const lower = href.trim().toLowerCase();
+      if (
+        lower.startsWith("#") ||
+        lower.startsWith("mailto:") ||
+        lower.startsWith("tel:") ||
+        lower.startsWith("javascript:") ||
+        lower.startsWith("data:") ||
+        lower.startsWith("blob:")
+      ) return;
   
-      // relative/absolute-path navigations
-      if (href.startsWith("/")) {
-        const mapped = mapToLocalPagePath(href.split("#")[0], "");
-        if (!mapped) return;
-        e.preventDefault();
-        const hash = href.includes("#") ? href.slice(href.indexOf("#")) : "";
-        window.location.href = mapped + hash;
+      // Only intercept internal paths or same-origin URLs
+      if (href.startsWith("/") || href.startsWith("http://") || href.startsWith("https://")) {
+        const mapped = mapAnyUrl(href);
+        if (mapped) {
+          e.preventDefault();
+          window.location.assign(mapped);
+        }
       }
     }, true);
   
+    // Also intercept SPA history navigations (pushState/replaceState)
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+  
+    function rewriteUrlForHistory(url) {
+      if (!url) return url;
+      const mapped = mapAnyUrl(url);
+      return mapped || url;
+    }
+  
+    history.pushState = function(state, title, url) {
+      return origPush.call(this, state, title, rewriteUrlForHistory(url));
+    };
+    history.replaceState = function(state, title, url) {
+      return origReplace.call(this, state, title, rewriteUrlForHistory(url));
+    };
   })();
   </script>
   
@@ -278,46 +310,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 <div id="page_content" class="ui container grid">
     <div class="row">
         
-<div class="sixteen wide mobile six wide computer centered column">
-    
-    <h2 class="ui blue centered header">
-        Login
-    </h2>
-    
-    <div class="ui stacked segment">
-        <form class="ui form" method="POST">
-            <input type="hidden" name="csrfmiddlewaretoken" value="JacaOprYQaXTroksk0OJ6zCxsnWhgQbhByWlXgAIlEC6XmkZTHamek5BVIpYoh96">
-            
-            
-            <div class="field">
-                <div class="ui left icon input">
-                    <i class="user icon"></i>
-                    <input type="text" name="username" placeholder="username or email" id="id_username" value="" maxlength="150" autofocus="" required="">
-                </div>
-            </div>
-
-            
-            <div class="field">
-                <div class="ui left icon input">
-                    <i class="lock icon"></i>
-                    <input type="password" name="password" placeholder="password" id="id_password" value="" maxlength="150" required="">
-                </div>
-            </div>
-            <button class="ui fluid blue submit button" type="submit">Log In</button>
-            <div class="ui divider"></div>
-            
-                <p>Don't have an account? <a href="../signup.html">Sign Up</a></p>
-            
-            <p><a href="../password_reset/index.html">Forgot your password?</a></p>
-
-            <div class="ui error message"></div>
-        </form>
-    </div>
-    
-
-    <!-- Auth Organization Buttons -->
-    
-</div>
+    <public-datasets><div class="page-header"> <h1 class="page-title">Public Datasets</h1> <a class="create-btn" href="../../datasets/create/index__q_652b0525a350143b0fe78fb5dff7a87183110639.html"> <i class="bi bi-plus-square-fill me-1"></i> Create </a> </div> <div class="content-container"> <div class="filters-panel"> <h3>Filters</h3> <div class="filter-group"> <label class="filter-label" for="search-title-description"><strong>Search by Title/Description</strong></label> <div class="ui input"> <input type="text" id="search-title-description" placeholder="Enter title/description..."> </div> </div> <div class="filter-group"> <strong class="filter-label">Order By</strong> <label><input type="radio" name="order" value="most_downloaded"> Most downloaded first</label> <label><input type="radio" name="order" value="recently_added"> Recently added first</label> </div> <div class="filter-group"> <strong class="filter-label">Dataset properties</strong> <label><input type="checkbox"> Has License</label> <label><input type="checkbox"> Is Verified</label> </div> <div class="filter-group" hidden="" style="display: none;"> <button class="clear-filters-btn ui button">Clear All Filters</button> </div> </div> <div class="list-panel"> <div id="loading" class="loading-indicator" hidden="" style="display: none;"> <div class="spinner"></div> </div>  <div class="no-results-message"> <div class="ui warning message"> <div class="header">No datasets found</div> Try changing your filters or search term. </div> </div>  </div> </div></public-datasets>
 
     </div>
 </div>
@@ -387,7 +380,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
         STORAGE_TYPE = "s3"
         MAX_EXECUTION_TIME_LIMIT = "600"
-        CURRENT_DATE_TIME = "2026-02-07T19:40:07.055949+00:00"
+        CURRENT_DATE_TIME = "2026-02-08T03:08:33.199473+00:00"
         CODALAB = {
             state: {
                 user: JSON.parse("{\u0022logged_in\u0022: false}"),
@@ -479,7 +472,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
         }
         // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
-        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="JacaOprYQaXTroksk0OJ6zCxsnWhgQbhByWlXgAIlEC6XmkZTHamek5BVIpYoh96">').attr('value')
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="zVsp1x7hKsHDGF0YIAizpYhiYvP5FPKnmPOnozrSn6hHLRbn0P4Iiaz58cFETlvK">').attr('value')
 
         $(document).ready( function () {
             $('#site-wide-competition-search').search({
@@ -514,4 +507,4 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
 
 
-<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="JacaOprYQaXTroksk0OJ6zCxsnWhgQbhByWlXgAIlEC6XmkZTHamek5BVIpYoh96"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="zVsp1x7hKsHDGF0YIAizpYhiYvP5FPKnmPOnozrSn6hHLRbn0P4Iiaz58cFETlvK"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
