@@ -318,7 +318,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
     <div class="ui stacked segment">
         <form class="ui form" method="POST">
-            <input type="hidden" name="csrfmiddlewaretoken" value="4cL3EVDVw9xtm5PtrkIOz74eTYfqNU5WR6711XXw9N7xrh0SJzuXsjm13F5Z1qQj">
+            <input type="hidden" name="csrfmiddlewaretoken" value="Y7cWAlR7sz6Mgf5TsQ1dUlSaqMTcoSHGcsHMAvBVv7rZsjyG7akepKYJMt3c10Do">
             
             
             <div class="field">
@@ -419,7 +419,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
         STORAGE_TYPE = "s3"
         MAX_EXECUTION_TIME_LIMIT = "600"
-        CURRENT_DATE_TIME = "2026-02-08T03:03:37.115325+00:00"
+        CURRENT_DATE_TIME = "2026-02-10T12:05:03.915022+00:00"
         CODALAB = {
             state: {
                 user: JSON.parse("{\u0022logged_in\u0022: false}"),
@@ -511,7 +511,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
         }
         // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
-        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="4cL3EVDVw9xtm5PtrkIOz74eTYfqNU5WR6711XXw9N7xrh0SJzuXsjm13F5Z1qQj">').attr('value')
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="Y7cWAlR7sz6Mgf5TsQ1dUlSaqMTcoSHGcsHMAvBVv7rZsjyG7akepKYJMt3c10Do">').attr('value')
 
         $(document).ready( function () {
             $('#site-wide-competition-search').search({
@@ -546,4 +546,4 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
 
 
-<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="4cL3EVDVw9xtm5PtrkIOz74eTYfqNU5WR6711XXw9N7xrh0SJzuXsjm13F5Z1qQj"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="Y7cWAlR7sz6Mgf5TsQ1dUlSaqMTcoSHGcsHMAvBVv7rZsjyG7akepKYJMt3c10Do"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>

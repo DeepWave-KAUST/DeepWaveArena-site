@@ -310,7 +310,46 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 <div id="page_content" class="ui container grid">
     <div class="row">
         
-    <public-datasets><div class="page-header"> <h1 class="page-title">Public Datasets</h1> <a class="create-btn" href="../../datasets/create/index__q_652b0525a350143b0fe78fb5dff7a87183110639.html"> <i class="bi bi-plus-square-fill me-1"></i> Create </a> </div> <div class="content-container"> <div class="filters-panel"> <h3>Filters</h3> <div class="filter-group"> <label class="filter-label" for="search-title-description"><strong>Search by Title/Description</strong></label> <div class="ui input"> <input type="text" id="search-title-description" placeholder="Enter title/description..."> </div> </div> <div class="filter-group"> <strong class="filter-label">Order By</strong> <label><input type="radio" name="order" value="most_downloaded"> Most downloaded first</label> <label><input type="radio" name="order" value="recently_added"> Recently added first</label> </div> <div class="filter-group"> <strong class="filter-label">Dataset properties</strong> <label><input type="checkbox"> Has License</label> <label><input type="checkbox"> Is Verified</label> </div> <div class="filter-group" hidden="" style="display: none;"> <button class="clear-filters-btn ui button">Clear All Filters</button> </div> </div> <div class="list-panel"> <div id="loading" class="loading-indicator" hidden="" style="display: none;"> <div class="spinner"></div> </div>  <div class="no-results-message"> <div class="ui warning message"> <div class="header">No datasets found</div> Try changing your filters or search term. </div> </div>  </div> </div></public-datasets>
+<div class="sixteen wide mobile six wide computer centered column">
+    
+    <h2 class="ui blue centered header">
+        Login
+    </h2>
+    
+    <div class="ui stacked segment">
+        <form class="ui form" method="POST">
+            <input type="hidden" name="csrfmiddlewaretoken" value="MZejiaMs0lnDnMzOuw27njbhPEvYFsim0kJ9ikwg3TIQzQ2B9Ql8SIhQblFYiAe4">
+            
+            
+            <div class="field">
+                <div class="ui left icon input">
+                    <i class="user icon"></i>
+                    <input type="text" name="username" placeholder="username or email" id="id_username" value="" maxlength="150" autofocus="" required="">
+                </div>
+            </div>
+
+            
+            <div class="field">
+                <div class="ui left icon input">
+                    <i class="lock icon"></i>
+                    <input type="password" name="password" placeholder="password" id="id_password" value="" maxlength="150" required="">
+                </div>
+            </div>
+            <button class="ui fluid blue submit button" type="submit">Log In</button>
+            <div class="ui divider"></div>
+            
+                <p>Don't have an account? <a href="../signup.html">Sign Up</a></p>
+            
+            <p><a href="../password_reset/index.html">Forgot your password?</a></p>
+
+            <div class="ui error message"></div>
+        </form>
+    </div>
+    
+
+    <!-- Auth Organization Buttons -->
+    
+</div>
 
     </div>
 </div>
@@ -380,7 +419,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
         
         STORAGE_TYPE = "s3"
         MAX_EXECUTION_TIME_LIMIT = "600"
-        CURRENT_DATE_TIME = "2026-02-08T03:08:33.199473+00:00"
+        CURRENT_DATE_TIME = "2026-02-10T12:11:17.997610+00:00"
         CODALAB = {
             state: {
                 user: JSON.parse("{\u0022logged_in\u0022: false}"),
@@ -472,7 +511,7 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
 
         }
         // Django returns <input type="hidden" value="csrf-token-secret"> so we just grab the `value` attribute from this
-        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="zVsp1x7hKsHDGF0YIAizpYhiYvP5FPKnmPOnozrSn6hHLRbn0P4Iiaz58cFETlvK">').attr('value')
+        CSRF_TOKEN = $('<input type="hidden" name="csrfmiddlewaretoken" value="MZejiaMs0lnDnMzOuw27njbhPEvYFsim0kJ9ikwg3TIQzQ2B9Ql8SIhQblFYiAe4">').attr('value')
 
         $(document).ready( function () {
             $('#site-wide-competition-search').search({
@@ -507,4 +546,4 @@ task-management .task-row,[data-is="task-management"] .task-row{ height: 42px; c
     
 
 
-<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="zVsp1x7hKsHDGF0YIAizpYhiYvP5FPKnmPOnozrSn6hHLRbn0P4Iiaz58cFETlvK"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
+<div class="ui dimmer modals page"><div id="user_switch_modal" class="ui mini modal"> <i class="close icon"></i> <div class="header">Change User</div> <div class="content"> <div class="field-container"> <form class="ui form" method="POST" action="/su/" ref="form"> <input type="hidden" value="MZejiaMs0lnDnMzOuw27njbhPEvYFsim0kJ9ikwg3TIQzQ2B9Ql8SIhQblFYiAe4"> <input ref="user_id" class="ui input focus" placeholder="User ID"> </form> </div> </div> <div class="actions"> <div class="ui grey basic deny button">Cancel</div> <div class="ui positive right labeled icon button"> Switch User <i class="checkmark icon"></i> </div> </div> </div></div></body></html>
